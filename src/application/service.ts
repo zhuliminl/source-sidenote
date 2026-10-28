@@ -5,7 +5,7 @@ import { Store } from "../infrastructure/store.js";
 import {
   scan,
   context,
-  fileContext,
+  dependencyContext,
   hash,
   safeRead,
 } from "../infrastructure/scanner.js";
@@ -18,7 +18,23 @@ import {
   PROMPT_VERSION,
   markdown,
   validateExplanation,
+  type SourceFile,
 } from "../domain/types.js";
+// Freshness is defined once here: source text hash + direct dependency fingerprint + prompt version.
+async function snapshot(root: string, files: SourceFile[], path: string) {
+  const source = await safeRead(root, path);
+  const deps = await dependencyContext(root, files, path, source);
+  return { source, hash: hash(source), deps };
+}
+type Snapshot = Awaited<ReturnType<typeof snapshot>>;
+function isFresh(d: any, s: Snapshot): boolean {
+  return Boolean(
+    d &&
+    d.hash === s.hash &&
+    d.context === s.deps.fingerprint &&
+    d.version === PROMPT_VERSION,
+  );
+}
 export class Service extends EventEmitter {
   active = new Map<string, AbortController>();
   timer?: NodeJS.Timeout;
@@ -35,10 +51,10 @@ export class Service extends EventEmitter {
     const p = this.store.project(id);
     const files = await scan(p.root);
     this.store.sync(id, files);
-    return { p, files, ctx: await context(p.root, files) };
+    return { p, files };
   }
   async run(id: string, kind = "generate", only?: string) {
-    const { files, ctx } = await this.refresh(id);
+    const { p, files } = await this.refresh(id);
     if (only && !files.some((f) => f.path === only))
       throw new Error("File excluded or unsupported");
     const config = this.store.config();
@@ -46,22 +62,13 @@ export class Service extends EventEmitter {
     let queued = 0;
     for (const f of files) {
       if (only && f.path !== only) continue;
+      if (queued >= config.maxFilesPerRun) break;
       const d = this.store.doc(id, f.path);
-      const fctx = await fileContext(
-        this.store.project(id).root,
-        files,
-        f.path,
-        await safeRead(this.store.project(id).root, f.path),
-        ctx,
-      );
-      const fresh =
-        d &&
-        d.hash === f.hash &&
-        d.context === hash(fctx) &&
-        d.version === PROMPT_VERSION;
+      const fresh = d
+        ? isFresh(d, await snapshot(p.root, files, f.path))
+        : false;
       if (kind === "review" && !fresh) continue;
       if (kind === "generate" && fresh && !only) continue;
-      if (queued >= config.maxFilesPerRun) break;
       queued += this.store.enqueue(id, f.path, kind);
     }
     this.emit("change");
@@ -74,36 +81,22 @@ export class Service extends EventEmitter {
     return Promise.all(
       rows.map(async (p: any) => {
         const files = this.store.files(p.id);
-        let ctx = "";
         let unavailable = false;
-        try {
-          ctx = hash(await context(p.root, files));
-        } catch {
-          unavailable = true;
-        }
         let covered = 0,
           fresh = 0,
           reviewed = 0;
         for (const f of files) {
           const d = this.store.doc(p.id, f.path);
-          if (d) covered++;
-          let currentContext = "";
-          let diskHash = "";
+          if (!d) continue;
+          covered++;
+          let s: Snapshot;
           try {
-            const text = await safeRead(p.root, f.path);
-            diskHash = hash(text);
-            currentContext = hash(
-              await fileContext(p.root, files, f.path, text),
-            );
+            s = await snapshot(p.root, files, f.path);
           } catch {
             unavailable = true;
+            continue;
           }
-          if (
-            d &&
-            d.hash === diskHash &&
-            d.context === currentContext &&
-            d.version === PROMPT_VERSION
-          ) {
+          if (isFresh(d, s)) {
             fresh++;
             if (d.review && JSON.parse(d.review).verdict === "pass") reviewed++;
           }
@@ -123,17 +116,8 @@ export class Service extends EventEmitter {
     const p = this.store.project(id);
     const d = this.store.doc(id, path);
     if (!d) return { status: "missing", markdown: "" };
-    const source = await safeRead(p.root, path);
-    const ctx = await fileContext(p.root, this.store.files(id), path, source);
-    return {
-      ...d,
-      status:
-        hash(source) === d.hash &&
-        hash(ctx) === d.context &&
-        d.version === PROMPT_VERSION
-          ? "fresh"
-          : "stale",
-    };
+    const s = await snapshot(p.root, this.store.files(id), path);
+    return { ...d, status: isFresh(d, s) ? "fresh" : "stale" };
   }
   start() {
     this.timer = setInterval(() => this.tick(), 300);
@@ -166,41 +150,30 @@ export class Service extends EventEmitter {
   async execute(job: any, signal: AbortSignal) {
     try {
       const p = this.store.project(job.project);
-      const source = await safeRead(p.root, job.path);
-      const initialHash = hash(source);
       const files = this.store.files(job.project);
       if (!files.some((f) => f.path === job.path))
         throw new Error("File excluded or removed");
-      const ctx = await fileContext(p.root, files, job.path, source);
+      const before = await snapshot(p.root, files, job.path);
+      const ctx = `${await context(p.root, files)}\n${before.deps.text}`;
       const cfg = this.store.config();
       const existing = this.store.doc(job.project, job.path);
-      if (
-        job.kind === "review" &&
-        (!existing ||
-          existing.hash !== initialHash ||
-          existing.context !== hash(ctx))
-      )
+      if (job.kind === "review" && !isFresh(existing, before))
         throw new Error("Explanation is stale; regenerate before review");
       const result: any = await complete(
         cfg,
         job.kind === "review"
-          ? reviewMessages(source, JSON.parse(existing.payload), ctx)
-          : explanationMessages(job.path, source, ctx),
+          ? reviewMessages(before.source, JSON.parse(existing.payload), ctx)
+          : explanationMessages(job.path, before.source, ctx),
         signal,
       );
       signal.throwIfAborted();
-      if (!this.store.files(job.project).some((f) => f.path === job.path))
+      const current = this.store.files(job.project);
+      if (!current.some((f) => f.path === job.path))
         throw new Error("File removed from project scope");
+      const after = await snapshot(p.root, current, job.path);
       if (
-        hash(await safeRead(p.root, job.path)) !== initialHash ||
-        hash(
-          await fileContext(
-            p.root,
-            this.store.files(job.project),
-            job.path,
-            await safeRead(p.root, job.path),
-          ),
-        ) !== hash(ctx)
+        after.hash !== before.hash ||
+        after.deps.fingerprint !== before.deps.fingerprint
       )
         throw new Error("Source changed during generation; rerun add");
       if (job.kind === "review") {
@@ -226,7 +199,7 @@ export class Service extends EventEmitter {
             existing.generated,
           );
       } else {
-        const e = validateExplanation(result, source.split("\n").length);
+        const e = validateExplanation(result, before.source.split("\n").length);
         const known = new Set(files.map((f) => f.path));
         if (e.relations.some((r) => !known.has(r.path)))
           throw new Error("Explanation references unknown source files");
@@ -235,8 +208,8 @@ export class Service extends EventEmitter {
           .run(
             job.project,
             job.path,
-            initialHash,
-            hash(ctx),
+            before.hash,
+            before.deps.fingerprint,
             PROMPT_VERSION,
             cfg.model,
             markdown(e, job.path),

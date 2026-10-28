@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { readFileSync } from "node:fs";
+import { realpath } from "node:fs/promises";
 import { join } from "node:path";
 import { spawn } from "node:child_process";
 import { dataDir } from "../infrastructure/paths.js";
@@ -85,7 +86,8 @@ async function main() {
     const path = args[0];
     if (!path) throw new Error("Usage: sidenote explain /absolute/file");
     const { resolve, relative, sep } = await import("node:path");
-    const full = resolve(path);
+    // Project roots are stored as realpaths (e.g. /private/tmp on macOS).
+    const full = await realpath(resolve(path)).catch(() => resolve(path));
     const projects = await api("projects");
     const p = projects
       .filter((p: any) => full.startsWith(p.root + sep))

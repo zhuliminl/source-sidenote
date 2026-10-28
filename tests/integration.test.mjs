@@ -134,10 +134,10 @@ test("HTTP auth, generation, cache, stale detection, review, cancellation and re
       "stale",
     );
     delay = 250;
+    const before = calls;
     await api("projects", { root });
-    await until(async () =>
-      (await api("jobs")).some((j) => j.state === "running"),
-    );
+    // Wait for the model request, not just state=running: the source snapshot is taken after that.
+    await until(async () => calls > before);
     await writeFile(join(root, "hello.ts"), "export const hello = () => 3;\n");
     await until(async () =>
       (await api("jobs")).some((j) => j.state === "failed"),
@@ -176,7 +176,7 @@ test("HTTP auth, generation, cache, stale detection, review, cancellation and re
   }
 });
 test("dependency context changes invalidate explanation fingerprints", async () => {
-  const { fileContext, hash } =
+  const { dependencyContext } =
     await import("../dist/infrastructure/scanner.js");
   const root = await mkdtemp(join(tmpdir(), "sidenote-deps-"));
   try {
@@ -184,12 +184,55 @@ test("dependency context changes invalidate explanation fingerprints", async () 
     await writeFile(join(root, "b.ts"), src);
     await writeFile(join(root, "a.ts"), "export const a=1");
     let files = await scan(root);
-    const first = hash(await fileContext(root, files, "b.ts", src));
+    const first = (await dependencyContext(root, files, "b.ts", src))
+      .fingerprint;
     await writeFile(join(root, "a.ts"), "export const a=2");
     files = await scan(root);
-    assert.notEqual(hash(await fileContext(root, files, "b.ts", src)), first);
+    const second = (await dependencyContext(root, files, "b.ts", src))
+      .fingerprint;
+    assert.notEqual(second, first);
+    await writeFile(join(root, "unrelated.ts"), "export const c=3");
+    await writeFile(join(root, "README.md"), "# changed");
+    files = await scan(root);
+    assert.equal(
+      (await dependencyContext(root, files, "b.ts", src)).fingerprint,
+      second,
+    );
   } finally {
     await rm(root, { recursive: true, force: true });
+  }
+});
+test("non UTF-8 sources are skipped instead of hashed inconsistently", async () => {
+  const root = await mkdtemp(join(tmpdir(), "sidenote-enc-"));
+  try {
+    await writeFile(join(root, "ok.java"), "class Ok {}");
+    // "中文" in GBK
+    await writeFile(
+      join(root, "gbk.java"),
+      Buffer.from([0xd6, 0xd0, 0xce, 0xc4]),
+    );
+    assert.deepEqual(
+      (await scan(root)).map((f) => f.path),
+      ["ok.java"],
+    );
+    await assert.rejects(safeRead(root, "gbk.java"), /UTF-8/);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+test("empty token file is replaced rather than accepting an empty bearer", async () => {
+  const home = await mkdtemp(join(tmpdir(), "sidenote-token-"));
+  await writeFile(join(home, "token"), "");
+  const server = await createServer(home, 0);
+  try {
+    assert.ok(server.token.length >= 32);
+    const r = await fetch(server.url + "/api/config", {
+      headers: { Authorization: "Bearer " },
+    });
+    assert.equal(r.status, 401);
+  } finally {
+    await server.app.close();
+    await rm(home, { recursive: true, force: true });
   }
 });
 test("single instance lock prevents duplicate service using same database", async () => {

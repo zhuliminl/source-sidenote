@@ -22,7 +22,13 @@ export async function complete(
   });
   // Never echo provider response bodies: they can contain credentials or private source.
   if (!res.ok) throw new Error(`Model HTTP ${res.status}`);
-  const body = (await res.json()) as any;
+  let body: any;
+  try {
+    body = await res.json();
+  } catch {
+    // JSON.parse errors quote the start of the body; keep it out of job errors.
+    throw new Error("Model response is not valid JSON");
+  }
   const text = body.choices?.[0]?.message?.content;
   if (typeof text !== "string") throw new Error("Model returned no text");
   try {

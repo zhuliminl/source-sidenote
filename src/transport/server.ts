@@ -13,10 +13,12 @@ export async function createServer(home: string, port = 47831) {
   const service = new Service(store);
   const app = Fastify({ logger: false, bodyLimit: 32768 });
   const tokenPath = join(home, "token");
-  let token: string;
+  let token = "";
   try {
     token = readFileSync(tokenPath, "utf8").trim();
-  } catch {
+  } catch {}
+  // An empty or truncated token file would make "Bearer " (or a trivial guess) authorize.
+  if (token.length < 32) {
     token = randomBytes(32).toString("hex");
     writeFileSync(tokenPath, token, { mode: 0o600 });
   }
@@ -49,7 +51,10 @@ export async function createServer(home: string, port = 47831) {
   });
   app.setErrorHandler((error, req, reply) => {
     const message = error instanceof Error ? error.message : "Request failed";
-    reply.code(400).send({ error: message.slice(0, 300) });
+    const status = (error as { statusCode?: number }).statusCode;
+    reply
+      .code(status && status >= 400 && status < 500 ? status : 400)
+      .send({ error: message.slice(0, 300) });
   });
   const assets = fileURLToPath(new URL("../../public/", import.meta.url));
   for (const [route, file, type] of [

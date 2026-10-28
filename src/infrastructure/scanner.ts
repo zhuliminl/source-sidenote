@@ -23,6 +23,15 @@ const excluded = new Set([
   ".venv",
   "vendor",
 ]);
+// Non-UTF-8 sources (e.g. GBK) are skipped: lossy decoding would make text and byte hashes disagree.
+const utf8 = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true });
+function decode(data: Buffer): string | undefined {
+  try {
+    return utf8.decode(data);
+  } catch {
+    return undefined;
+  }
+}
 export async function safeRead(root: string, path: string): Promise<string> {
   root = await realpath(root);
   const target = await realpath(join(root, path));
@@ -32,7 +41,9 @@ export async function safeRead(root: string, path: string): Promise<string> {
   const info = await lstat(target);
   if (!info.isFile() || info.size > 128 * 1024)
     throw new Error("Source exceeds 128 KiB limit");
-  return readFile(target, "utf8");
+  const text = decode(await readFile(target));
+  if (text === undefined) throw new Error("Source is not valid UTF-8");
+  return text;
 }
 export async function scan(root: string): Promise<SourceFile[]> {
   const files: SourceFile[] = [];
@@ -79,7 +90,7 @@ export async function scan(root: string): Promise<SourceFile[]> {
         const stat = await lstat(path);
         if (!stat.size || stat.size > 128 * 1024) continue;
         const data = await readFile(path);
-        if (data.includes(0)) continue;
+        if (data.includes(0) || decode(data) === undefined) continue;
         files.push({ path: rel, hash: hash(data), bytes: stat.size });
       }
     }
@@ -111,13 +122,14 @@ export async function context(
   return overview.join("\n");
 }
 // Lightweight direct-import context. Deliberately not a full language-server graph.
-export async function fileContext(
+// The fingerprint covers only these dependencies, so unrelated file additions or
+// README edits do not invalidate every explanation in the project.
+export async function dependencyContext(
   root: string,
   files: SourceFile[],
   path: string,
   source: string,
-  overview?: string,
-): Promise<string> {
+): Promise<{ text: string; fingerprint: string }> {
   const { posix } = await import("node:path");
   const known = new Set(files.map((f) => f.path));
   const related = new Set<string>();
@@ -153,14 +165,15 @@ export async function fileContext(
       if (resolved) related.add(resolved.path);
     }
   const parts = [
-    overview ?? (await context(root, files)),
     "直接依赖片段（最多 8 个，每个最多 6000 字符；没有提供的实现不能推测）:",
   ];
+  const fingerprint: string[] = [];
   for (const rel of [...related].sort().slice(0, 8)) {
     try {
       const text = await safeRead(root, rel);
       parts.push(`${rel} [sha256:${hash(text)}]\n${text.slice(0, 6000)}`);
+      fingerprint.push(`${rel}:${hash(text)}`);
     } catch {}
   }
-  return parts.join("\n");
+  return { text: parts.join("\n"), fingerprint: hash(fingerprint.join("\n")) };
 }

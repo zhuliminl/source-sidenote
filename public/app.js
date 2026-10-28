@@ -236,10 +236,19 @@ async function events() {
   });
   if (!r.ok) return;
   const reader = r.body.getReader();
+  // Coalesce bursts of job events: each project refresh re-reads source files on the server.
+  let pending;
+  const refresh = () => {
+    clearTimeout(pending);
+    pending = setTimeout(
+      () => Promise.all([projects(), jobs()]).catch((e) => message(e.message)),
+      300,
+    );
+  };
   while (true) {
     const { done } = await reader.read();
     if (done) break;
-    await Promise.all([projects(), jobs()]);
+    refresh();
   }
 }
 if (!token) message("请在终端运行 sidenote ui，打开带有本机授权的管理页。");
