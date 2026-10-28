@@ -3,16 +3,19 @@
 采用模块化单体：一个服务进程，一个 SQLite 数据库，多个客户端。无需 Docker、Redis、独立数据库服务。
 
 ```text
-src/domain          说明结构、校验、Markdown 渲染；不依赖 HTTP/数据库
-src/application     用例：注册、扫描、生成、复查、任务状态
-src/infrastructure  SQLite、文件扫描、模型适配、路径与服务锁
-src/transport       HTTP 鉴权、请求验证、管理页资源、SSE
-src/cli             start/add/explain 等命令，通过 HTTP 使用服务
-public              无构建依赖的静态管理页
+src/shared          HTTP 契约类型（服务端、CLI、管理页共用，仅类型）
+src/domain          实体、错误类型、说明校验与 Markdown 渲染；不依赖 HTTP/数据库
+src/application     用例：ProjectService（注册/扫描/调度/统计）、JobWorker（队列执行）、
+                    ConfigService（zod 校验）、freshness（唯一的新鲜度定义）、container（组装）
+src/infrastructure  persistence（SQLite 迁移、仓储、配置文件）、source（扫描/安全读取/上下文）、
+                    llm（Chat Completions 客户端与提示词）、路径与服务锁
+src/transport/http  服务生命周期、安全钩子（Host/Origin/Token/CSP）、错误映射、路由、管理页静态资源
+src/cli             parseArgs 解析 + 命令表，通过 HTTP 使用服务
+web                 管理页：Vite + React 19 + TanStack Query + Tailwind v4 + shadcn/ui，构建到 dist/web
 editors/neovim      仅负责编辑器显示与 CLI 调用
 ```
 
-当前 application 直接依赖具体基础设施实现，尚未为只有一个实现的组件引入容器或多层 repository 接口。第二种模型协议或存储出现时再提取窄接口。未来 VS Code 使用相同 HTTP 协议。
+仓储按表拆分并返回类型化记录，SQL 只出现在 infrastructure/persistence。application 直接依赖这些具体实现，组装集中在 container.ts；尚未为只有一个实现的组件抽象接口。任务执行由事件驱动（入队、配置变更、任务结束时唤醒），不再轮询。第二种模型协议或存储出现时再提取窄接口。未来 VS Code 使用相同 HTTP 协议。
 
 ## 身份与缓存
 
@@ -41,7 +44,8 @@ editors/neovim      仅负责编辑器显示与 CLI 调用
 | GET/POST /api/projects               | 列表/注册并开始任务                           |
 | POST /api/projects/:id/refresh       | 重新扫描                                      |
 | POST /api/projects/:id/run           | `{kind: generate 或 review, path?: 相对路径}` |
-| GET /api/projects/:id/files          | 文件清单                                      |
+| GET /api/projects/:id/files          | 文件清单与每个文件的说明状态                  |
+| DELETE /api/projects/:id             | 移除项目及其说明/任务（不触碰源码）           |
 | GET /api/projects/:id/document?path= | 文档与新鲜状态                                |
 | GET /api/jobs                        | 最近 200 个任务                               |
 | POST /api/jobs/:id/cancel            | 取消                                          |

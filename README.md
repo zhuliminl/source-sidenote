@@ -8,7 +8,7 @@ Source Sidenote 为本地项目生成简明、有代码依据的逐文件说明�
 
 ## 当前可用
 
-- 一个本机服务管理多个项目，内置中文管理页。
+- 一个本机服务管理多个项目，内置中文管理页（React + Vite + shadcn/ui，浅色/深色，支持手机宽度）。
 - Chat Completions 兼容接口：Base URL、模型、密钥、并发、每批文件上限、超时可配置。
 - `add` 自动扫描、注册、生成缺失/过期说明；重复执行复用缓存。
 - 源码与上下文指纹、Markdown 说明、结构化依据、复查结果持久化。
@@ -87,14 +87,16 @@ require('sidenote').setup({
 
 源文件及已知直接依赖变化可使说明过期；文件清单和 README/构建文件只作为背景上下文，修改它们不会让全部说明过期；新增/删除文件和忽略规则变化需要重新扫描或 `add`。尚无文件系统实时监听、完整 AST/LSP 依赖图、架构摘要生成、间接依赖传播、价格统计、自动重试退避、模型连通性测试或完整资源预算。大型仓库统计目前会读取文件；需要后续增量索引优化。
 
-浏览器当前提供 Markdown 源文本预览；浏览器代码/说明双栏阅读、VS Code 客户端、未保存快照均为后续计划。
+管理页提供文件列表与结构化说明阅读（关联文件可跳转、AI 复查结果、过期提示）；源码与说明并排对照、VS Code 客户端、未保存快照均为后续计划。
 
 ## 开发与发布
 
 ```sh
-npm run check
-npm test
+npm run check      # 服务端 + 管理页类型检查
+npm test           # 构建服务端与管理页，运行集成测试
 npm pack --dry-run
 ```
+
+管理页源码在 `web/`（npm workspace）。开发时先 `npm start`，再运行 `npm run dev`，打开 `http://localhost:5173/#<token>`（token 位于数据目录的 `token` 文件）；Vite 会把 `/api` 代理到本机服务。
 
 参见 [架构](docs/architecture.md)、[竞品与定位](docs/landscape.md)、[验收](docs/acceptance.md)、[贡献说明](CONTRIBUTING.md)。MIT License。

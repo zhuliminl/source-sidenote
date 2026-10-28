@@ -4,8 +4,11 @@ import { mkdtemp, mkdir, writeFile, rm, symlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createServer as httpServer } from "node:http";
-import { createServer } from "../dist/transport/server.js";
-import { scan, safeRead } from "../dist/infrastructure/scanner.js";
+import { createServer } from "../dist/transport/http/server.js";
+import { scan } from "../dist/infrastructure/source/scanner.js";
+import { safeRead } from "../dist/infrastructure/source/files.js";
+import { dependencyContext } from "../dist/infrastructure/source/context.js";
+import { validateExplanation } from "../dist/domain/explanation.js";
 const explanation = {
   summary: "导出示例函数。",
   responsibilities: ["返回固定值"],
@@ -82,7 +85,7 @@ test("HTTP auth, generation, cache, stale detection, review, cancellation and re
         method: method || (body ? "POST" : "GET"),
         headers: {
           Authorization: "Bearer " + server.token,
-          "Content-Type": "application/json",
+          ...(body ? { "Content-Type": "application/json" } : {}),
         },
         body: body ? JSON.stringify(body) : undefined,
       });
@@ -113,6 +116,21 @@ test("HTTP auth, generation, cache, stale detection, review, cancellation and re
       "PUT",
     );
     assert.ok(!JSON.stringify(await api("config")).includes("never-echo-this"));
+    const raw = (path, init) =>
+      fetch(server.url + "/api/" + path, {
+        ...init,
+        headers: {
+          Authorization: "Bearer " + server.token,
+          "Content-Type": "application/json",
+        },
+      });
+    assert.equal((await raw("projects/nope/files")).status, 404);
+    const insecure = await raw("config", {
+      method: "PUT",
+      body: JSON.stringify({ baseUrl: "http://example.com/v1", model: "x" }),
+    });
+    assert.equal(insecure.status, 400);
+    assert.match((await insecure.json()).error, /HTTPS/);
     const added = await api("projects", { root });
     assert.equal(added.queued, 1);
     const id = added.project.id;
@@ -167,6 +185,12 @@ test("HTTP auth, generation, cache, stale detection, review, cancellation and re
         (await api(`projects/${id}/document?path=hello.ts`)).status === "fresh",
     );
     assert.equal((await api("projects"))[0].covered, 1);
+    const files = await api(`projects/${id}/files`);
+    assert.deepEqual(files, [
+      { path: "hello.ts", bytes: files[0].bytes, status: "fresh" },
+    ]);
+    await api(`projects/${id}`, undefined, "DELETE");
+    assert.deepEqual(await api("projects"), []);
   } finally {
     if (server) await server.app.close();
     mock.closeAllConnections();
@@ -176,8 +200,6 @@ test("HTTP auth, generation, cache, stale detection, review, cancellation and re
   }
 });
 test("dependency context changes invalidate explanation fingerprints", async () => {
-  const { dependencyContext } =
-    await import("../dist/infrastructure/scanner.js");
   const root = await mkdtemp(join(tmpdir(), "sidenote-deps-"));
   try {
     const src = "import { a } from './a';\nexport const b = a;";
@@ -249,9 +271,9 @@ test("unfinished jobs recover and SSE connections do not block shutdown", async 
   const home = await mkdtemp(join(tmpdir(), "sidenote-resume-"));
   let server = await createServer(home, 0);
   try {
-    const p = server.store.register("/fixture", "fixture");
-    server.store.enqueue(p.id, "a.ts");
-    server.store.db.exec("UPDATE jobs SET state='running'");
+    const p = server.container.projects.register("/fixture", "fixture");
+    server.container.jobs.enqueue(p.id, "a.ts");
+    server.container.db.exec("UPDATE jobs SET state='running'");
     const response = await fetch(server.url + "/api/events", {
       headers: { Authorization: "Bearer " + server.token },
     });
@@ -259,7 +281,7 @@ test("unfinished jobs recover and SSE connections do not block shutdown", async 
     await reader.read();
     await server.app.close();
     server = await createServer(home, 0);
-    assert.equal(server.store.jobs()[0].state, "queued");
+    assert.equal(server.container.jobs.recent()[0].state, "queued");
     await reader.cancel();
   } finally {
     await server.app.close();
@@ -267,7 +289,6 @@ test("unfinished jobs recover and SSE connections do not block shutdown", async 
   }
 });
 test("invalid model evidence is rejected rather than counted as covered", async () => {
-  const { validateExplanation } = await import("../dist/domain/types.js");
   assert.throws(
     () =>
       validateExplanation(
@@ -283,4 +304,26 @@ test("invalid model evidence is rejected rather than counted as covered", async 
     () => validateExplanation({ ...explanation, summary: "" }, 2),
     /summary/,
   );
+});
+test("web app is served with SPA fallback while unknown API routes stay JSON 404", async () => {
+  const home = await mkdtemp(join(tmpdir(), "sidenote-web-"));
+  const server = await createServer(home, 0);
+  try {
+    const page = await fetch(server.url + "/projects/some-id?file=a.ts");
+    assert.equal(page.status, 200);
+    assert.match(page.headers.get("content-type"), /text\/html/);
+    assert.match(
+      page.headers.get("content-security-policy"),
+      /script-src 'self'/,
+    );
+    assert.match(await page.text(), /<div id="root">/);
+    const api = await fetch(server.url + "/api/nope", {
+      headers: { Authorization: "Bearer " + server.token },
+    });
+    assert.equal(api.status, 404);
+    assert.deepEqual(await api.json(), { error: "Not found" });
+  } finally {
+    await server.app.close();
+    await rm(home, { recursive: true, force: true });
+  }
 });
