@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, Outlet, useLocation } from "react-router";
 import { SquarePen } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -8,25 +8,16 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { useLiveUpdates } from "@/hooks/use-live-updates";
+import { useMediaQuery } from "@/hooks/use-media-query";
 import { SettingsDialog } from "@/features/settings/settings-dialog";
 import { cn } from "@/lib/utils";
 import { Sidebar } from "./sidebar";
 import { SidebarToggle } from "./sidebar-toggle";
 import { UiContext, type SettingsTab, type UiState } from "./ui-state";
 
-const mobileQuery = matchMedia("(max-width: 767px)");
-const useIsMobile = () =>
-  useSyncExternalStore(
-    (cb) => {
-      mobileQuery.addEventListener("change", cb);
-      return () => mobileQuery.removeEventListener("change", cb);
-    },
-    () => mobileQuery.matches,
-  );
-
 export function AppShell() {
   useLiveUpdates();
-  const isMobile = useIsMobile();
+  const isMobile = useMediaQuery("(max-width: 767px)");
   const [desktopOpen, setDesktopOpen] = useState(true);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [settings, setSettings] = useState<SettingsTab | null>(null);

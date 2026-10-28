@@ -46,6 +46,7 @@ editors/neovim      仅负责编辑器显示与 CLI 调用
 | POST /api/projects/:id/run           | `{kind: generate 或 review, path?: 相对路径}` |
 | GET /api/projects/:id/files          | 文件清单与每个文件的说明状态                  |
 | DELETE /api/projects/:id             | 移除项目及其说明/任务（不触碰源码）           |
+| GET /api/projects/:id/source?path=   | 扫描范围内文件的当前源码（阅读器用）          |
 | GET /api/projects/:id/document?path= | 文档与新鲜状态                                |
 | GET /api/jobs                        | 最近 200 个任务                               |
 | POST /api/jobs/:id/cancel            | 取消                                          |

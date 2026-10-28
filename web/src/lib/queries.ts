@@ -21,6 +21,8 @@ export const keys = {
   config: ["config"] as const,
   projects: ["projects"] as const,
   files: (project: string) => ["projects", project, "files"] as const,
+  source: (project: string, path: string) =>
+    ["projects", project, "source", path] as const,
   document: (project: string, path: string) =>
     ["projects", project, "document", path] as const,
   jobs: ["jobs"] as const,
@@ -36,6 +38,13 @@ export const useFiles = (project: string) =>
   useQuery({
     queryKey: keys.files(project),
     queryFn: () => api.files(project),
+  });
+
+export const useSource = (project: string, path: string | null) =>
+  useQuery({
+    queryKey: keys.source(project, path ?? ""),
+    queryFn: () => api.source(project, path!),
+    enabled: Boolean(path),
   });
 
 export const useDocument = (project: string, path: string | null) =>

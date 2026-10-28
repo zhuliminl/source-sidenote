@@ -9,6 +9,7 @@ import type {
   JobView,
   ProjectSummary,
   RunResult,
+  SourceView,
   StatusView,
 } from "../../shared/api.js";
 import type { Container } from "../../application/container.js";
@@ -65,6 +66,12 @@ export function registerRoutes(
   });
   app.get("/api/projects/:id/files", (req): Promise<FileEntry[]> =>
     projects.files(idParams.parse(req.params).id),
+  );
+  app.get("/api/projects/:id/source", (req): Promise<SourceView> =>
+    projects.source(
+      idParams.parse(req.params).id,
+      documentQuery.parse(req.query).path,
+    ),
   );
   app.get("/api/projects/:id/document", (req): Promise<DocumentView> =>
     projects.document(

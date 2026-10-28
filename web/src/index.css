@@ -132,3 +132,15 @@
   scrollbar-color: color-mix(in srgb, var(--foreground) 18%, transparent)
     transparent;
 }
+
+/* Shiki dual-theme tokens (see lib/highlight.ts). */
+.code-token {
+  color: var(--shiki-light);
+  font-style: var(--shiki-light-font-style);
+  font-weight: var(--shiki-light-font-weight);
+}
+.dark .code-token {
+  color: var(--shiki-dark);
+  font-style: var(--shiki-dark-font-style);
+  font-weight: var(--shiki-dark-font-weight);
+}

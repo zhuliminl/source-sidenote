@@ -8,6 +8,7 @@ import type {
   JobView,
   ProjectSummary,
   RunResult,
+  SourceView,
   StatusView,
 } from "@shared/api";
 
@@ -53,6 +54,11 @@ export const api = {
     request<RunResult>("POST", `projects/${id(project)}/run`, { kind, path }),
   files: (project: string) =>
     request<FileEntry[]>("GET", `projects/${id(project)}/files`),
+  source: (project: string, path: string) =>
+    request<SourceView>(
+      "GET",
+      `projects/${id(project)}/source?path=${id(path)}`,
+    ),
   document: (project: string, path: string) =>
     request<DocumentView>(
       "GET",

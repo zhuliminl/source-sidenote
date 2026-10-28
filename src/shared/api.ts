@@ -40,6 +40,13 @@ export interface Review {
   checked: string;
 }
 
+/** Current on-disk text of an in-scope source file. */
+export interface SourceView {
+  path: string;
+  content: string;
+  bytes: number;
+}
+
 export type DocumentView =
   | { status: "missing"; path: string; markdown: "" }
   | {

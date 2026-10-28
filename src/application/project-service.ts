@@ -7,9 +7,11 @@ import type {
   JobKind,
   ProjectSummary,
   RunResult,
+  SourceView,
 } from "../shared/api.js";
 import { parseReview, type Project } from "../domain/model.js";
-import { badRequest } from "../domain/errors.js";
+import { badRequest, notFound } from "../domain/errors.js";
+import { safeRead } from "../infrastructure/source/files.js";
 import type {
   DocumentRepository,
   FileRepository,
@@ -132,6 +134,15 @@ export class ProjectService {
         };
       }),
     );
+  }
+
+  /** Source text for the reader; only files inside the scanned scope are served. */
+  async source(id: string, path: string): Promise<SourceView> {
+    const p = this.deps.projects.get(id);
+    const file = this.deps.files.list(id).find((f) => f.path === path);
+    if (!file) throw notFound("File not in project scope");
+    const content = await safeRead(p.root, path);
+    return { path, content, bytes: Buffer.byteLength(content) };
   }
 
   async document(id: string, path: string): Promise<DocumentView> {

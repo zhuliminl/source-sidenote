@@ -180,6 +180,13 @@ test("HTTP origin checks, generation, cache, stale detection, review, cancellati
     assert.deepEqual(files, [
       { path: "hello.ts", bytes: files[0].bytes, status: "fresh" },
     ]);
+    const source = await api(`projects/${id}/source?path=hello.ts`);
+    assert.equal(source.content, "export const hello = () => 3;\n");
+    assert.equal(
+      (await fetch(`${server.url}/api/projects/${id}/source?path=../x.ts`))
+        .status,
+      404,
+    );
     await api(`projects/${id}`, undefined, "DELETE");
     assert.deepEqual(await api("projects"), []);
   } finally {
