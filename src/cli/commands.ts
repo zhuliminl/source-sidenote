@@ -36,25 +36,21 @@ function openBrowser(url: string) {
   child.on("error", () => {});
   child.unref();
 }
-// The token travels in the fragment, which is never sent to the server or logged.
-const openUi = (url: string, token: string) => openBrowser(`${url}/#${token}`);
 
 async function start({ api, home, flags }: CommandContext) {
   try {
     await api.get<StatusView>("status");
     const c = api.connection;
     console.log(`服务已运行：${c.url}`);
-    if (flags.open) openUi(c.url, c.token);
+    if (flags.open) openBrowser(c.url);
     return;
   } catch {}
   const port = flags.port === undefined ? DEFAULT_PORT : Number(flags.port);
   if (!Number.isInteger(port) || port < 1 || port > 65535)
     throw new Error("Invalid port");
   const s = await createServer(home, port);
-  console.log(
-    `Source Sidenote 已启动：${s.url}\n使用 sidenote ui 打开已认证管理页。按 Ctrl-C 停止服务。`,
-  );
-  if (flags.open) openUi(s.url, s.token);
+  console.log(`Source Sidenote 已启动：${s.url}\n按 Ctrl-C 停止服务。`);
+  if (flags.open) openBrowser(s.url);
   for (const signal of ["SIGINT", "SIGTERM"] as const)
     process.on(signal, () => void s.app.close());
 }
@@ -122,8 +118,7 @@ export const commands: Record<string, (ctx: CommandContext) => Promise<void>> =
   {
     start,
     ui: async ({ api }) => {
-      const c = api.connection;
-      openUi(c.url, c.token);
+      openBrowser(api.connection.url);
     },
     status: async ({ api }) => print(await api.get<StatusView>("status")),
     stop: async ({ api }) => print(await api.post("stop")),

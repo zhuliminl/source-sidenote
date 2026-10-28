@@ -20,7 +20,7 @@ export default defineConfig({
     chunkSizeWarningLimit: 900,
   },
   server: {
-    // Dev: open http://localhost:5173/#<token> (token from `sidenote ui`).
+    // Dev: run `npm start`, then open http://localhost:5173.
     proxy: {
       "/api": {
         target: service,

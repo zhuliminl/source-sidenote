@@ -11,30 +11,6 @@ import type {
   StatusView,
 } from "@shared/api";
 
-const TOKEN_KEY = "sidenote-token";
-
-/**
- * `sidenote ui` opens `/#<token>`. Take it once, keep it for the tab session,
- * and strip it from the address bar so it is not copied or bookmarked.
- */
-function initialToken(): string {
-  const fromHash = location.hash.slice(1);
-  if (/^[a-f0-9]{64}$/i.test(fromHash)) {
-    try {
-      sessionStorage.setItem(TOKEN_KEY, fromHash);
-    } catch {}
-    history.replaceState(null, "", location.pathname + location.search);
-    return fromHash;
-  }
-  try {
-    return sessionStorage.getItem(TOKEN_KEY) ?? "";
-  } catch {
-    return "";
-  }
-}
-
-export const token = initialToken();
-
 export class ApiError extends Error {
   constructor(
     readonly status: number,
@@ -51,10 +27,7 @@ async function request<T>(
 ): Promise<T> {
   const res = await fetch(`/api/${path}`, {
     method,
-    headers: {
-      Authorization: `Bearer ${token}`,
-      ...(body === undefined ? {} : { "Content-Type": "application/json" }),
-    },
+    headers: body === undefined ? {} : { "Content-Type": "application/json" },
     body: body === undefined ? undefined : JSON.stringify(body),
   });
   const data = await res.json().catch(() => ({}));
@@ -90,15 +63,12 @@ export const api = {
     request<{ ok: true }>("POST", `jobs/${id(job)}/cancel`, {}),
 };
 
-/** Opens the authenticated SSE stream; EventSource cannot send headers, so use fetch. */
+/** Opens the SSE stream via fetch so it can be aborted and parsed incrementally. */
 export async function subscribe(
   onTopic: (topic: string) => void,
   signal: AbortSignal,
 ) {
-  const res = await fetch("/api/events", {
-    headers: { Authorization: `Bearer ${token}` },
-    signal,
-  });
+  const res = await fetch("/api/events", { signal });
   if (!res.ok || !res.body) throw new ApiError(res.status, "事件流不可用");
   const reader = res.body.pipeThrough(new TextDecoderStream()).getReader();
   let buffer = "";

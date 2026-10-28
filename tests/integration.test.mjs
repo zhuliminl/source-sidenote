@@ -47,7 +47,7 @@ test("scanner excludes dependencies, secrets, ignored files and symlinks", async
     await rm(root, { recursive: true, force: true });
   }
 });
-test("HTTP auth, generation, cache, stale detection, review, cancellation and restart", async () => {
+test("HTTP origin checks, generation, cache, stale detection, review, cancellation and restart", async () => {
   const home = await mkdtemp(join(tmpdir(), "sidenote-home-"));
   const root = await mkdtemp(join(tmpdir(), "sidenote-project-"));
   let calls = 0;
@@ -83,24 +83,18 @@ test("HTTP auth, generation, cache, stale detection, review, cancellation and re
     const api = async (path, body, method) => {
       const r = await fetch(server.url + "/api/" + path, {
         method: method || (body ? "POST" : "GET"),
-        headers: {
-          Authorization: "Bearer " + server.token,
-          ...(body ? { "Content-Type": "application/json" } : {}),
-        },
+        headers: body ? { "Content-Type": "application/json" } : {},
         body: body ? JSON.stringify(body) : undefined,
       });
       const value = await r.json();
       assert.equal(r.status, 200, JSON.stringify(value));
       return value;
     };
-    assert.equal((await fetch(server.url + "/api/config")).status, 401);
+    assert.equal((await fetch(server.url + "/api/config")).status, 200);
     assert.equal(
       (
         await fetch(server.url + "/api/config", {
-          headers: {
-            Authorization: "Bearer " + server.token,
-            Origin: "https://evil.test",
-          },
+          headers: { Origin: "https://evil.test" },
         })
       ).status,
       403,
@@ -119,10 +113,7 @@ test("HTTP auth, generation, cache, stale detection, review, cancellation and re
     const raw = (path, init) =>
       fetch(server.url + "/api/" + path, {
         ...init,
-        headers: {
-          Authorization: "Bearer " + server.token,
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
       });
     assert.equal((await raw("projects/nope/files")).status, 404);
     const insecure = await raw("config", {
@@ -242,16 +233,27 @@ test("non UTF-8 sources are skipped instead of hashed inconsistently", async () 
     await rm(root, { recursive: true, force: true });
   }
 });
-test("empty token file is replaced rather than accepting an empty bearer", async () => {
-  const home = await mkdtemp(join(tmpdir(), "sidenote-token-"));
-  await writeFile(join(home, "token"), "");
+test("requests with a foreign Host or Origin are rejected without any login", async () => {
+  const { request } = await import("node:http");
+  const home = await mkdtemp(join(tmpdir(), "sidenote-origin-"));
   const server = await createServer(home, 0);
+  const status = (headers) =>
+    new Promise((resolve, reject) =>
+      request(server.url + "/api/projects", { headers }, (res) => {
+        res.resume();
+        resolve(res.statusCode);
+      })
+        .on("error", reject)
+        .end(),
+    );
   try {
-    assert.ok(server.token.length >= 32);
-    const r = await fetch(server.url + "/api/config", {
-      headers: { Authorization: "Bearer " },
-    });
-    assert.equal(r.status, 401);
+    const port = new URL(server.url).port;
+    assert.equal(await status({}), 200);
+    // DNS rebinding: an attacker domain resolving to 127.0.0.1.
+    assert.equal(await status({ Host: `evil.test:${port}` }), 403);
+    assert.equal(await status({ Host: `localhost:${port}` }), 403);
+    // Cross-site request from a web page.
+    assert.equal(await status({ Origin: "https://evil.test" }), 403);
   } finally {
     await server.app.close();
     await rm(home, { recursive: true, force: true });
@@ -274,9 +276,7 @@ test("unfinished jobs recover and SSE connections do not block shutdown", async 
     const p = server.container.projects.register("/fixture", "fixture");
     server.container.jobs.enqueue(p.id, "a.ts");
     server.container.db.exec("UPDATE jobs SET state='running'");
-    const response = await fetch(server.url + "/api/events", {
-      headers: { Authorization: "Bearer " + server.token },
-    });
+    const response = await fetch(server.url + "/api/events");
     const reader = response.body.getReader();
     await reader.read();
     await server.app.close();
@@ -317,9 +317,7 @@ test("web app is served with SPA fallback while unknown API routes stay JSON 404
       /script-src 'self'/,
     );
     assert.match(await page.text(), /<div id="root">/);
-    const api = await fetch(server.url + "/api/nope", {
-      headers: { Authorization: "Bearer " + server.token },
-    });
+    const api = await fetch(server.url + "/api/nope");
     assert.equal(api.status, 404);
     assert.deepEqual(await api.json(), { error: "Not found" });
   } finally {

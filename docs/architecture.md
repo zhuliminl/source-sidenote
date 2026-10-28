@@ -9,7 +9,7 @@ src/application     用例：ProjectService（注册/扫描/调度/统计）、J
                     ConfigService（zod 校验）、freshness（唯一的新鲜度定义）、container（组装）
 src/infrastructure  persistence（SQLite 迁移、仓储、配置文件）、source（扫描/安全读取/上下文）、
                     llm（Chat Completions 客户端与提示词）、路径与服务锁
-src/transport/http  服务生命周期、安全钩子（Host/Origin/Token/CSP）、错误映射、路由、管理页静态资源
+src/transport/http  服务生命周期、安全钩子（Host/Origin/CSP）、错误映射、路由、管理页静态资源
 src/cli             parseArgs 解析 + 命令表，通过 HTTP 使用服务
 web                 管理页：Vite + React 19 + TanStack Query + Tailwind v4 + shadcn/ui，构建到 dist/web
 editors/neovim      仅负责编辑器显示与 CLI 调用
@@ -35,7 +35,7 @@ editors/neovim      仅负责编辑器显示与 CLI 调用
 
 ## API
 
-所有 `/api/*` 需要 `Authorization: Bearer <local token>`。
+无需登录：服务只监听 127.0.0.1，请求的 Host 必须是 `127.0.0.1:<端口>`，带 Origin 时必须同源，否则返回 403。
 
 | 路径                                 | 用途                                          |
 | ------------------------------------ | --------------------------------------------- |

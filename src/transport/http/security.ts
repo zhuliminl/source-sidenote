@@ -1,22 +1,4 @@
 import type { FastifyInstance } from "fastify";
-import { randomBytes, timingSafeEqual } from "node:crypto";
-import { readFileSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
-
-/** Loads the local bearer token, replacing missing, empty or truncated token files. */
-export function loadToken(home: string): string {
-  const path = join(home, "token");
-  let token = "";
-  try {
-    token = readFileSync(path, "utf8").trim();
-  } catch {}
-  // An empty or truncated token file would make "Bearer " (or a trivial guess) authorize.
-  if (token.length < 32) {
-    token = randomBytes(32).toString("hex");
-    writeFileSync(path, token, { mode: 0o600 });
-  }
-  return token;
-}
 
 const CSP = [
   "default-src 'self'",
@@ -32,19 +14,14 @@ const CSP = [
 ].join("; ");
 
 /**
- * Loopback-only defenses: exact Host (DNS rebinding), same Origin (CSRF),
- * bearer token for every /api route.
+ * No login: the service binds to loopback only. Web pages are kept out by an exact
+ * Host (defeats DNS rebinding) and same-Origin check (defeats cross-site requests).
+ * Other processes of the local user are trusted, like any local dev tool.
  */
 export function registerSecurity(
   app: FastifyInstance,
-  options: { token: string; port: () => number },
+  options: { port: () => number },
 ) {
-  const expected = Buffer.from(options.token);
-  const authorized = (value: string | undefined) => {
-    if (!value?.startsWith("Bearer ")) return false;
-    const given = Buffer.from(value.slice(7));
-    return given.length === expected.length && timingSafeEqual(given, expected);
-  };
   app.addHook("onRequest", async (req, reply) => {
     const origin = `127.0.0.1:${options.port()}`;
     if (req.headers.host !== origin)
@@ -55,7 +32,5 @@ export function registerSecurity(
     reply.header("Content-Security-Policy", CSP);
     reply.header("Referrer-Policy", "no-referrer");
     reply.header("Cache-Control", "no-store");
-    if (req.url.startsWith("/api/") && !authorized(req.headers.authorization))
-      return reply.code(401).send({ error: "Unauthorized" });
   });
 }

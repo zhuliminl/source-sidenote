@@ -77,7 +77,7 @@ require('sidenote').setup({
 - 排除依赖、构建产物、隐藏文件、`.env`、密钥扩展名、锁文件、压缩/生成文件、符号链接、空文件、非 UTF-8 编码（如 GBK）、超过 128 KiB 和非源码扩展名的文件。
 - 支持根目录和子目录 `.gitignore` / `.sidenoteignore`；不承诺等同 Git 全部忽略语义。被父目录排除的子项不能重新纳入。
 - 不在业务项目写入说明，不修改业务源码，不执行仓库脚本。
-- 服务只监听回环地址，API 要求本机 token，并校验 Host/Origin。管理页启动授权通过 URL fragment 交接，随后清除地址栏 fragment；不要分享授权链接。
+- 服务只监听回环地址（127.0.0.1），无需登录；通过严格校验 Host/Origin 阻止网页跨站访问和 DNS 重绑定。本机其他进程可以访问服务，与其他本地开发工具一样。
 - 密钥保存在权限为 `0600` 的配置文件，**不是加密保险箱**；不会由配置查询接口回传，也不记录到模型错误日志。操作系统密钥链支持待实现。
 - 数据默认在 `~/.local/share/source-sidenote`，可用 `SIDENOTE_HOME` 覆盖。目录权限 `0700`。
 
@@ -97,6 +97,6 @@ npm test           # 构建服务端与管理页，运行集成测试
 npm pack --dry-run
 ```
 
-管理页源码在 `web/`（npm workspace）。开发时先 `npm start`，再运行 `npm run dev`，打开 `http://localhost:5173/#<token>`（token 位于数据目录的 `token` 文件）；Vite 会把 `/api` 代理到本机服务。
+管理页源码在 `web/`（npm workspace）。开发时先 `npm start`，再运行 `npm run dev`，打开 `http://localhost:5173`；Vite 会把 `/api` 代理到本机服务。
 
 参见 [架构](docs/architecture.md)、[竞品与定位](docs/landscape.md)、[验收](docs/acceptance.md)、[贡献说明](CONTRIBUTING.md)。MIT License。

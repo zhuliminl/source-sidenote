@@ -4,21 +4,17 @@ import { join } from "node:path";
 export interface Connection {
   url: string;
   pid: number;
-  token: string;
 }
 
 export function readConnection(home: string): Connection {
   try {
-    return {
-      ...JSON.parse(readFileSync(join(home, "connection.json"), "utf8")),
-      token: readFileSync(join(home, "token"), "utf8").trim(),
-    };
+    return JSON.parse(readFileSync(join(home, "connection.json"), "utf8"));
   } catch {
     throw new Error("服务未启动，请先运行 sidenote start");
   }
 }
 
-/** Minimal authenticated client for the local service. */
+/** Minimal client for the local service. */
 export class ApiClient {
   constructor(private home: string) {}
   get connection() {
@@ -28,10 +24,7 @@ export class ApiClient {
     const c = this.connection;
     const res = await fetch(`${c.url}/api/${path}`, {
       method,
-      headers: {
-        Authorization: `Bearer ${c.token}`,
-        ...(body === undefined ? {} : { "Content-Type": "application/json" }),
-      },
+      headers: body === undefined ? {} : { "Content-Type": "application/json" },
       body: body === undefined ? undefined : JSON.stringify(body),
       signal: AbortSignal.timeout(120000),
     });

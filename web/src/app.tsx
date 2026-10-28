@@ -6,12 +6,9 @@ import { AppShell } from "@/components/layout/app-shell";
 import { HomePage } from "@/features/home/home-page";
 import { ProjectPage } from "@/features/project/project-page";
 import { JobsPage } from "@/features/jobs/jobs-page";
-import { Unauthorized } from "@/components/unauthorized";
-import { token } from "@/lib/api";
 import { queryClient } from "@/lib/queries";
 
 export function App() {
-  if (!token) return <Unauthorized />;
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider delayDuration={300}>

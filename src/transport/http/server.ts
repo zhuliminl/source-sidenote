@@ -3,7 +3,7 @@ import { writeFileSync, unlinkSync } from "node:fs";
 import { join } from "node:path";
 import { acquireLock } from "../../infrastructure/lock.js";
 import { createContainer } from "../../application/container.js";
-import { loadToken, registerSecurity } from "./security.js";
+import { registerSecurity } from "./security.js";
 import { registerErrorHandler } from "./errors.js";
 import { registerRoutes } from "./routes.js";
 import { registerWebApp } from "./static.js";
@@ -21,11 +21,10 @@ export async function createServer(home: string, port = DEFAULT_PORT) {
     throw error;
   }
   const c = container;
-  const token = loadToken(home);
   const app = Fastify({ logger: false, bodyLimit: 32768 });
   let actualPort = port;
 
-  registerSecurity(app, { token, port: () => actualPort });
+  registerSecurity(app, { port: () => actualPort });
   registerErrorHandler(app);
   registerRoutes(app, c, () => void app.close());
   await registerWebApp(app);
@@ -54,5 +53,5 @@ export async function createServer(home: string, port = DEFAULT_PORT) {
     { mode: 0o600 },
   );
   c.worker.start();
-  return { app, container: c, url, token };
+  return { app, container: c, url };
 }
