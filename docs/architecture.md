@@ -13,7 +13,7 @@ src/infrastructure  persistence（SQLite 迁移、仓储、配置文件）、sou
 src/transport/http  服务生命周期、安全钩子（Host/Origin/CSP）、错误映射、路由、管理页静态资源
 src/cli             parseArgs 解析 + 命令表，通过 HTTP 使用服务
 web                 管理页：Vite + React 19 + TanStack Query + Tailwind v4 + shadcn/ui，构建到 dist/web
-editors/neovim      仅负责编辑器显示与 CLI 调用
+editors/neovim      Neovim 适配器：按主题 review 当前文件（sign 标记、光标对应、浮窗、说明窗口），curl 调 HTTP
 editors/vscode      VS Code 扩展：按主题 review 当前文件（依据标记、光标对应、说明面板、阅读顺序视图）
 ```
 
@@ -94,4 +94,3 @@ stories 表按主题保存故事：问题、标题、状态（generating / ready
 1. 真实模型与真实项目小样本验收；质量和费用记录。
 2. 增量索引、明确的预算、模型适配与测试连接。
 3. 规划阶段使用更丰富的结构信号（导入图、符号索引），提高大仓库的选文件质量。
-4. Neovim 适配器按 VS Code 的 review 范围补齐（代码依据标记、光标对应、复查）。

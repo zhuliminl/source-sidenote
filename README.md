@@ -20,7 +20,7 @@ Source Sidenote 按**主题**帮你读懂本地项目：描述你想弄懂的功
 - 文件树/README/构建配置 + 有限的 JS/TS 相对导入、Java 显式导入上下文。
 - 持久化队列、单实例锁、重启恢复、取消；失败后手动重跑，不无限重试。
 - 覆盖率 = 至少被一个主题解释的文件 / 扫描纳入的文件；每个主题单独显示最新说明数量。
-- Neovim 0.10+ 右侧分屏，默认不绑定任何快捷键、不修改主题。
+- Neovim 0.10+：sign 列标出代码依据、光标所在段落高亮并浮窗显示依据，右侧分屏显示说明；全局不绑定快捷键，高亮组可覆盖。
 
 ## 从源码运行
 
@@ -66,18 +66,27 @@ sidenote stop
 
 ## Neovim
 
-把本仓库的 `editors/neovim` 加入 runtimepath（或将它作为本地插件加载）：
+把本仓库的 `editors/neovim` 加入 runtimepath（或将它作为本地插件加载），需要 Neovim 0.10+ 和 `curl`：
 
 ```lua
 vim.opt.runtimepath:append('/path/to/source-sidenote/editors/neovim')
 require('sidenote').setup({
-  -- npm link 后可用 { 'sidenote' }；也可指定独立 Node 和 CLI 绝对路径
-  command = { '/path/to/node26', '/path/to/source-sidenote/dist/cli/main.js' },
-  width = 52,
+  -- home = '~/.local/share/source-sidenote', -- 默认取 $SIDENOTE_HOME，与服务一致
+  width = 56,
+  annotate = true, -- 在 sign 列标出代码依据
+  hover = true, -- 光标停在某段代码上时浮窗显示这段的依据
 })
 ```
 
-使用 `:Sidenote` 显示当前文件在最新主题中的说明；文件属于多个主题时用 `:SidenoteTopic` 切换；`:SidenoteClose` 关闭。说明在管理页按主题生成，编辑器只负责查看。代码保留在原窗口，说明显示在右侧，焦点留在代码。说明窗口内 `q` 关闭。不会覆盖用户的 Tab、x 或其他映射。第一版针对已保存文件，未保存会提示；切换文件后再次执行命令刷新说明。
+插件和 VS Code 扩展一样直接调用本机服务（读取 `connection.json`，`curl` 访问 `127.0.0.1`），只负责 review：
+
+- 打开属于某个主题的文件，sign 列会出现细竖线标出每段代码依据；光标所在的那一段整段暖黄色高亮，停一会儿浮窗显示这段的依据。
+- `:Sidenote` 在右侧打开说明（焦点留在代码）：一句话说明、核心流程、职责、代码依据（光标所在段对应的条目高亮）、关联文件、阅读注意、AI 复查结果。说明窗口里 `<CR>` 在依据上跳到代码、在关联文件上打开文件，`gr` 重新生成，`gR` AI 复查，`gt` 切换主题，`go` 阅读顺序，`gw` 网页阅读，`q` 关闭。这些映射只在说明窗口内生效。
+- `:SidenoteTopic` 选择这个项目要对照阅读的主题（按项目记住；没选时用最新覆盖该文件的主题）。
+- `:SidenoteReview`、`:SidenoteRegenerate` 对当前文件发起 AI 复查或重新生成；`:SidenoteOrder` 把主题文件按阅读顺序放进 quickfix（`:cnext` 逐个看）；`:SidenoteWeb` 在网页阅读器打开同一主题、文件和代码段（没有主题时打开项目页去新建）；`:SidenoteClose` 关闭说明。
+- 任务完成后通过 `/api/events` 自动刷新。高亮组 `SidenoteBlock`、`SidenoteEvidence` 可自行覆盖。说明针对已保存的文件，有未保存修改时会提示。
+
+新建主题、确认文件、故事和模型设置都在网页阅读器里完成。
 
 ## 范围、费用与隐私
 
