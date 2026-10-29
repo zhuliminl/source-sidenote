@@ -24,7 +24,7 @@
     "editors/neovim",
     "README.md",
     "LICENSE",
-    "docs"
+    "docs/*.md"
   ],
   "scripts": {
     "build": "node scripts/clean.mjs && tsc && npm run build -w web",
