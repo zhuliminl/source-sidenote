@@ -82,7 +82,7 @@ export class ProjectService {
       if (queued >= config.maxFilesPerRun) break;
       const d = docs.get(f.path);
       const s = d && (await trySnapshot(project.root, files, f.path));
-      const fresh = Boolean(s && isFresh(d, s));
+      const fresh = Boolean(s && isFresh(d, s, config.model));
       if (kind === "review" && !fresh) continue;
       if (kind === "generate" && fresh && !only) continue;
       queued += this.deps.jobs.enqueue(id, f.path, kind);
@@ -121,6 +121,7 @@ export class ProjectService {
   private async fileEntries(p: Project): Promise<FileEntry[]> {
     const files = this.deps.files.list(p.id);
     const docs = this.deps.docs.listByProject(p.id);
+    const { model } = this.deps.config.get();
     // Only documented files need to be read from disk to judge freshness.
     return Promise.all(
       files.map(async (f): Promise<FileEntry> => {
@@ -130,7 +131,7 @@ export class ProjectService {
         return {
           path: f.path,
           bytes: f.bytes,
-          status: !s ? "unavailable" : isFresh(d, s) ? "fresh" : "stale",
+          status: !s ? "unavailable" : isFresh(d, s, model) ? "fresh" : "stale",
         };
       }),
     );
@@ -151,7 +152,7 @@ export class ProjectService {
     if (!d) return { status: "missing", path, markdown: "" };
     const s = await snapshot(p.root, this.deps.files.list(id), path);
     return {
-      status: isFresh(d, s) ? "fresh" : "stale",
+      status: isFresh(d, s, this.deps.config.get().model) ? "fresh" : "stale",
       path,
       markdown: d.markdown,
       explanation: JSON.parse(d.payload),

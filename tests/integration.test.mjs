@@ -180,6 +180,28 @@ test("HTTP origin checks, generation, cache, stale detection, review, cancellati
     assert.deepEqual(files, [
       { path: "hello.ts", bytes: files[0].bytes, status: "fresh" },
     ]);
+    // Switching models marks earlier explanations for regeneration.
+    await api(
+      "config",
+      {
+        baseUrl: `http://127.0.0.1:${mock.address().port}/v1`,
+        model: "fixture-2",
+      },
+      "PUT",
+    );
+    assert.equal(
+      (await api(`projects/${id}/document?path=hello.ts`)).status,
+      "stale",
+    );
+    assert.equal((await api(`projects/${id}/files`))[0].status, "stale");
+    await api(
+      "config",
+      {
+        baseUrl: `http://127.0.0.1:${mock.address().port}/v1`,
+        model: "fixture",
+      },
+      "PUT",
+    );
     const source = await api(`projects/${id}/source?path=hello.ts`);
     assert.equal(source.content, "export const hello = () => 3;\n");
     assert.equal(

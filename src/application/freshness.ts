@@ -6,7 +6,8 @@ import {
 import { dependencyContext } from "../infrastructure/source/context.js";
 import { hash, safeRead } from "../infrastructure/source/files.js";
 
-// Freshness is defined once here: source text hash + direct dependency fingerprint + prompt version.
+// Freshness is defined once here: source text hash + direct dependency fingerprint + prompt version
+// + the configured model, so switching models marks earlier explanations for regeneration.
 export async function snapshot(
   root: string,
   files: SourceFile[],
@@ -18,12 +19,18 @@ export async function snapshot(
 }
 export type Snapshot = Awaited<ReturnType<typeof snapshot>>;
 
-export function isFresh(d: DocRecord | undefined, s: Snapshot): boolean {
+export function isFresh(
+  d: DocRecord | undefined,
+  s: Snapshot,
+  model: string,
+): boolean {
   return Boolean(
     d &&
     d.hash === s.hash &&
     d.context === s.deps.fingerprint &&
-    d.version === PROMPT_VERSION,
+    d.version === PROMPT_VERSION &&
+    // With no model configured nothing can be regenerated, so keep showing what exists.
+    (!model || d.model === model),
   );
 }
 

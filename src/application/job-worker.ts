@@ -86,7 +86,10 @@ export class JobWorker {
       const context = `${await projectOverview(p.root, manifest)}\n${before.deps.text}`;
       const cfg = config.get();
       const existing = docs.get(job.project, job.path);
-      if (job.kind === "review" && (!existing || !isFresh(existing, before)))
+      if (
+        job.kind === "review" &&
+        (!existing || !isFresh(existing, before, cfg.model))
+      )
         throw new Error("Explanation is stale; regenerate before review");
 
       const result = await completeJson(

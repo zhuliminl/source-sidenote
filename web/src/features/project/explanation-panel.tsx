@@ -153,7 +153,9 @@ function Body({
     <div className="text-sm leading-7">
       {doc.status === "stale" && (
         <Notice icon={<CircleAlert className="text-warning" />}>
-          <span className="flex-1">源码或直接依赖已变化，说明可能不准确。</span>
+          <span className="flex-1">
+            源码、直接依赖或模型已变化，说明可能不准确。
+          </span>
           <Button
             size="xs"
             variant="outline"
