@@ -13,6 +13,7 @@ import { AppEvents } from "./events.js";
 import { ProjectService } from "./project-service.js";
 import { TopicService } from "./topic-service.js";
 import { StoryService } from "./story-service.js";
+import { AgentService } from "./agent-service.js";
 import { ConfigService } from "./config-service.js";
 import { JobWorker } from "./job-worker.js";
 
@@ -31,12 +32,20 @@ export function createContainer(home: string) {
     events,
   };
   const projectService = new ProjectService(deps);
+  const topicService = new TopicService(deps, projectService);
+  const storyService = new StoryService(deps);
   return {
     db,
     ...deps,
     projectService,
-    topicService: new TopicService(deps, projectService),
-    storyService: new StoryService(deps),
+    topicService,
+    storyService,
+    agentService: new AgentService(
+      deps,
+      projectService,
+      topicService,
+      storyService,
+    ),
     configService: new ConfigService(deps.config, events),
     worker: new JobWorker(deps),
     close: () => db.close(),

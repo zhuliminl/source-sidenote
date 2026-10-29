@@ -217,10 +217,23 @@ function body(doc: Doc) {
   );
   return [
     h("p", { class: "summary" }, inline(e.summary)),
+    e.why && h("p", { class: "why" }, inline(e.why)),
     h("p", { class: "meta" }, `${doc.model} · ${when(doc.generated)}`),
     diagram(doc),
+    list("走一遍", e.scenario ?? [], true),
     list("核心流程", e.flow, true),
     list("职责", e.responsibilities),
+    (e.terms?.length ?? 0) > 0 &&
+      section(
+        "术语",
+        h(
+          "ul",
+          {},
+          ...e.terms.map((t) =>
+            h("li", {}, h("strong", {}, t.term), "：", inline(t.meaning)),
+          ),
+        ),
+      ),
     e.evidence.length > 0 &&
       section("代码依据", evidence, "点击定位；光标所在的段落会自动对应到这里"),
     e.relations.length > 0 && section("关联文件", relations),

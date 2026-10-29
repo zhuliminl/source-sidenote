@@ -52,6 +52,33 @@ const topicConfirm = z.object({
     .max(100),
   instructions: text.optional(),
 });
+const author = z.string().max(80).optional();
+const agentTopic = z.object({
+  title: z.string().max(80).optional(),
+  request: text,
+  instructions: text.optional(),
+  files: z
+    .array(
+      z.object({
+        path: z.string().min(1),
+        reason: z.string().max(2000).default(""),
+      }),
+    )
+    .max(200),
+  author,
+});
+const agentExplanation = z.object({
+  path: z.string().min(1),
+  explanation: z.unknown(),
+  author,
+});
+const agentOverview = z.object({ overview: z.unknown(), author });
+const agentStory = z.object({
+  question: text,
+  title: z.string().max(80).optional(),
+  steps: z.unknown(),
+  author,
+});
 const storyCreate = z.object({ question: text, model: modelChoice });
 const storyRetry = z.object({ model: modelChoice }).default({});
 const fileRun = z.object({
@@ -68,6 +95,7 @@ export function registerRoutes(
     projectService: projects,
     topicService: topics,
     storyService: stories,
+    agentService: agent,
     configService: config,
     worker,
   } = c;
@@ -134,6 +162,33 @@ export function registerRoutes(
   app.get("/api/projects/:id/files", async (req): Promise<FileEntry[]> =>
     projects.files(idParams.parse(req.params).id),
   );
+  // For coding agents through `sidenote mcp`: the writing guide and validated writes.
+  app.get("/api/agent/guide", async () => agent.guide());
+  app.post("/api/agent/projects/:id/topics", (req): Promise<TopicView> =>
+    agent.createTopic(
+      idParams.parse(req.params).id,
+      agentTopic.parse(req.body),
+    ),
+  );
+  app.post("/api/agent/topics/:id/explanations", (req) =>
+    agent.submitExplanation(
+      idParams.parse(req.params).id,
+      agentExplanation.parse(req.body),
+    ),
+  );
+  app.post("/api/agent/topics/:id/overview", async (req) =>
+    agent.submitOverview(
+      idParams.parse(req.params).id,
+      agentOverview.parse(req.body),
+    ),
+  );
+  app.post("/api/agent/topics/:id/stories", (req): Promise<StoryView> =>
+    agent.submitStory(
+      idParams.parse(req.params).id,
+      agentStory.parse(req.body),
+    ),
+  );
+
   // For editors: where an absolute path sits (project, scope, topics covering it).
   app.get("/api/locate", (req): Promise<LocateResult> =>
     projects.locate(pathQuery.parse(req.query).path),

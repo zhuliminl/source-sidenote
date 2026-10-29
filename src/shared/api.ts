@@ -86,6 +86,34 @@ export interface LocateResult {
   topics: { id: string; title: string; reason: string }[];
 }
 
+/** Coding agents (via `sidenote mcp`) write topics directly; `author` is the MCP client's name. */
+export interface AgentTopicCreate {
+  title?: string;
+  request: string;
+  instructions?: string;
+  files: { path: string; reason: string }[];
+  author?: string;
+}
+
+export interface AgentExplanationSubmit {
+  path: string;
+  /** Same shape as Explanation; validated like model output. */
+  explanation: unknown;
+  author?: string;
+}
+
+export interface AgentOverviewSubmit {
+  overview: unknown;
+  author?: string;
+}
+
+export interface AgentStorySubmit {
+  question: string;
+  title?: string;
+  steps: unknown;
+  author?: string;
+}
+
 export type StoryState = "generating" | "ready" | "failed";
 
 /** One frame of a story: open this file, look at these lines, read this. */

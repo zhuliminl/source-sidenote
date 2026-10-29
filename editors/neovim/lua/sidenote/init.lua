@@ -276,8 +276,14 @@ render_panel = function()
       local e = doc.explanation
       if doc.status == 'stale' then add('> 源码、直接依赖或模型已变化，说明可能不准确。按 gr 重新生成。') add('') end
       add(e.summary)
+      if str(e.why) ~= '' then add('') add(e.why) end
       add('')
       add('_' .. str(doc.model) .. '_')
+      if e.scenario and #e.scenario > 0 then
+        add('')
+        add('## 走一遍')
+        for n, s in ipairs(e.scenario) do add(n .. '. ' .. s) end
+      end
       if #e.flow > 0 then
         add('')
         add('## 核心流程')
@@ -287,6 +293,11 @@ render_panel = function()
         add('')
         add('## 职责')
         for _, s in ipairs(e.responsibilities) do add('- ' .. s) end
+      end
+      if e.terms and #e.terms > 0 then
+        add('')
+        add('## 术语')
+        for _, t in ipairs(e.terms) do add('- **' .. str(t.term) .. '**：' .. str(t.meaning)) end
       end
       if #e.evidence > 0 then
         add('')

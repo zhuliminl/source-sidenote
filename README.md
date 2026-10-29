@@ -147,6 +147,28 @@ require('sidenote').setup()
 
 No global key mappings are added. Inside the explanation window, `<CR>` jumps to the code, and `gr` / `gR` / `gt` / `go` / `gw` regenerate, review, switch topic, show the reading order and open the web reader.
 
+## Let a coding agent write the explanations (MCP)
+
+Source Sidenote's own model calls see one file at a time. A coding agent such as **Claude Code** or **Codex** can explore the whole repository — follow callers and callees, read tests — before it writes. `sidenote mcp` is a [Model Context Protocol](https://modelcontextprotocol.io) server that lets an agent read your topics and submit explanations, walkthroughs and stories. Everything it submits is validated by the service (shape, real paths, line ranges inside the file) and attributed to the agent, then shows up in the web reader and the editor plugins immediately.
+
+**Claude Code**
+
+```sh
+claude mcp add sidenote -- node /path/to/source-sidenote/dist/cli/main.js mcp
+```
+
+Then run `/mcp__sidenote__explain_topic` (optionally with a topic id), or just ask: _"Use the sidenote tools to write the explanations for topic …"_.
+
+**Codex** — add to `~/.codex/config.toml`:
+
+```toml
+[mcp_servers.sidenote]
+command = "node"
+args = ["/path/to/source-sidenote/dist/cli/main.js", "mcp"]
+```
+
+The service must be running (`sidenote start`). Tools: `get_guide` (the writing guide every agent should follow), `list_projects`, `list_topics`, `get_topic`, `locate_file`, `create_topic` (the agent picks the files), `get_explanation`, `submit_explanation`, `submit_overview`, `submit_story`. Agents are told to read only and never modify files; explanations they write go stale when the code changes, not when you switch models.
+
 ## Privacy and cost
 
 - Nothing leaves your machine until you confirm a topic, and then only the files you approved (plus short snippets of their direct imports) go to the model you chose.

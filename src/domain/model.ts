@@ -181,6 +181,9 @@ export const configLimits = {
   timeoutMs: [1000, 180000],
 } as const;
 
+/** Explanations, walkthroughs and stories written by coding agents are attributed as "agent:<client>". */
+export const AGENT_PREFIX = "agent:";
+
 /** Bump when prompts or the explanation schema change; older docs become stale. */
 export const PROMPT_VERSION = "topic-explanation-v4";
 

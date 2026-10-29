@@ -147,6 +147,28 @@ require('sidenote').setup()
 
 插件不添加任何全局快捷键。在说明窗口里，`<CR>` 跳到代码，`gr` / `gR` / `gt` / `go` / `gw` 分别是重新生成、AI 复查、切换主题、阅读顺序和打开网页。
 
+## 让编码 Agent 来写说明（MCP）
+
+源旁注自己调用模型时，每次只看一个文件。**Claude Code**、**Codex** 这类编码 Agent 可以先在整个仓库里探索——顺着调用方和被调用方读、看测试——再动笔。`sidenote mcp` 是一个 [MCP](https://modelcontextprotocol.io) 服务器：Agent 通过它读取你的主题，并提交说明、导读和故事。提交的内容都由服务端校验（格式、真实路径、行号在文件范围内），记上 Agent 的名字后保存，网页阅读器和编辑器插件里立即可见。
+
+**Claude Code**
+
+```sh
+claude mcp add sidenote -- node /path/to/source-sidenote/dist/cli/main.js mcp
+```
+
+然后运行 `/mcp__sidenote__explain_topic`（可以带上主题 id），或者直接说：“用 sidenote 的工具为主题……写说明”。
+
+**Codex**：在 `~/.codex/config.toml` 里加上：
+
+```toml
+[mcp_servers.sidenote]
+command = "node"
+args = ["/path/to/source-sidenote/dist/cli/main.js", "mcp"]
+```
+
+服务需要先启动（`sidenote start`）。提供的工具：`get_guide`（所有 Agent 都要遵守的写作指南）、`list_projects`、`list_topics`、`get_topic`、`locate_file`、`create_topic`（由 Agent 挑选文件）、`get_explanation`、`submit_explanation`、`submit_overview`、`submit_story`。Agent 被要求只读代码、不修改文件；它写的说明只在代码变化时过期，不会因为你换了模型而过期。
+
 ## 隐私与费用
 
 - 在你确认主题之前，没有任何内容离开你的机器；确认后，只有你认可的文件（以及它们直接导入的少量片段）会发给你选择的模型。

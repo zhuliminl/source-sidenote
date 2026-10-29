@@ -11,6 +11,7 @@ import type {
 } from "../shared/api.js";
 import { createServer, DEFAULT_PORT } from "../transport/http/server.js";
 import { ApiClient } from "./client.js";
+import { serveMcp } from "./mcp.js";
 
 export interface CommandContext {
   home: string;
@@ -110,6 +111,7 @@ export const usage = `Source Sidenote
   ui | status | stop | projects
   add [project-directory]
   explain /absolute/file [--topic id]
+  mcp      MCP 服务器（stdio），供 Claude Code、Codex 等 Agent 读写主题
 
 SIDENOTE_HOME 可覆盖全局数据目录。`;
 
@@ -130,5 +132,6 @@ export const commands: Record<string, (ctx: CommandContext) => Promise<void>> =
         }),
       ),
     explain,
+    mcp: ({ api }) => serveMcp(api),
   };
 commands.doctor = commands.status;

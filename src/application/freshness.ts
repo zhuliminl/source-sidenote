@@ -1,4 +1,5 @@
 import {
+  AGENT_PREFIX,
   PROMPT_VERSION,
   type DocRecord,
   type SourceFile,
@@ -30,7 +31,8 @@ export function isFresh(
     d.context === s.deps.fingerprint &&
     d.version === PROMPT_VERSION &&
     // With no model configured nothing can be regenerated, so keep showing what exists.
-    (!model || d.model === model),
+    // Explanations written by coding agents only go stale when the code changes.
+    (!model || d.model === model || d.model.startsWith(AGENT_PREFIX)),
   );
 }
 

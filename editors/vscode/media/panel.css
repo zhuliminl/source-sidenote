@@ -245,3 +245,7 @@ button.link:hover {
 .diagram .active :is(rect, polygon, circle, path.basic) {
   fill: rgba(250, 204, 21, 0.18) !important;
 }
+.why {
+  margin: 6px 0 0;
+  color: var(--vscode-descriptionForeground);
+}

@@ -39,6 +39,10 @@ config.json 保存供应商列表（名称、开关、API 格式、Base URL、�
 
 stories 表按主题保存故事：问题、标题、状态（generating / ready / failed）、模型和步骤 JSON（path、start、end、title、narration）。新建故事入队一个 story 任务（path 存故事 id），输入是主题文件的行数、说明、代码依据和关联（不含源码）；结果只保留指向主题文件、行号在文件内的步骤，单步最多 80 行，少于两步视为失败。导读输出 questions 作为推荐故事；`POST /api/topics/:id/story-ideas` 重新生成导读以获得推荐。删除主题会删除其故事。阅读器把故事和步骤放在 URL（`&story=…&step=3`），每一步对应打开文件并聚焦行号范围。
 
+## Agent 与 MCP
+
+`sidenote mcp` 是 stdio 上的 MCP 服务器（手写 JSON-RPC，无额外依赖），只通过 HTTP 调用本机服务。工具读取项目、主题和写作指南（`GET /api/agent/guide`，由与模型提示词相同的写作风格和结构拼成），写入走 `/api/agent/*`：建主题（Agent 自选文件，直接确认，不入队）、提交说明、导读和故事。写入与模型输出走同一套校验（路径、行号、结构），作者记为 `agent:<MCP 客户端名>`。新鲜度对 `agent:` 作者不比较模型，只看源码、依赖和提示词版本。
+
 ## 生命周期
 
 `add → realpath → 扫描 → 更新清单`（不调用模型）
@@ -68,6 +72,8 @@ stories 表按主题保存故事：问题、标题、状态（generating / ready
 | GET/POST /api/projects             | 列表（含覆盖率、主题数）/注册并扫描                            |
 | POST /api/projects/:id/refresh     | 重新扫描                                                       |
 | GET /api/projects/:id/files        | 文件清单与覆盖每个文件的主题                                   |
+| GET /api/agent/guide               | 给编码 Agent 的写作指南（与模型提示词同源）                    |
+| POST /api/agent/...                | Agent 建主题、提交说明/导读/故事（校验后署名保存）             |
 | GET /api/locate?path=              | 编辑器用：绝对路径所属项目、是否在扫描范围、覆盖它的主题       |
 | GET /api/projects/:id/source?path= | 扫描范围内文件的当前源码（阅读器用）                           |
 | DELETE /api/projects/:id           | 移除项目及其主题/说明/任务（不触碰源码）                       |

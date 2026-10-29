@@ -207,3 +207,28 @@ export function promptCatalog(maxFiles: number): PromptView[] {
     },
   ];
 }
+
+/**
+ * The brief for coding agents (Claude Code, Codex…) writing a topic through the MCP server:
+ * the same style and output shapes as the model prompts, plus how to work as an agent.
+ */
+export function agentGuide(): string {
+  return [
+    "# Source Sidenote 写作指南（给编码 Agent）",
+    "你在帮读者为一个“主题”写代码说明。和普通模型不同，你可以用自己的工具读整个仓库：写每份说明之前，先读这个文件，再顺着调用方、被调用方和测试看清它在链路里的真实作用，必要时可以运行只读命令。不要修改任何文件。",
+    "## 工作流程",
+    "1. 用 get_topic 读取主题：描述、补充要求、文件清单（阅读顺序和入选理由）以及项目根目录。没有合适的主题时，可以先挑文件、用 create_topic 建一个。",
+    "2. 按阅读顺序，逐个文件读代码并写说明，用 submit_explanation 提交。服务端会校验行号和格式，失败时按错误信息修正后重新提交。",
+    "3. 所有文件写完后，写整条链路的导读，用 submit_overview 提交。",
+    "4. 需要时，针对导读里推荐的问题录制故事，用 submit_story 提交。",
+    "行号以文件当前内容为准，从 1 开始。说明使用中文，除非主题的补充要求另有规定。",
+    "## 写作风格",
+    WRITING_STYLE,
+    "## 单个文件的说明（submit_explanation 的 explanation 参数）",
+    EXPLAIN_SYSTEM,
+    "## 链路导读（submit_overview 的 overview 参数）",
+    OVERVIEW_SYSTEM,
+    "## 故事（submit_story 的参数）",
+    STORY_SYSTEM,
+  ].join("\n\n");
+}

@@ -1,8 +1,9 @@
+import { spawn } from "node:child_process";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { mkdtemp, mkdir, writeFile, rm, symlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { createServer as httpServer } from "node:http";
 import { createServer } from "../dist/transport/http/server.js";
 import { scan } from "../dist/infrastructure/source/scanner.js";
@@ -427,6 +428,144 @@ test("topics: plan, confirm, explain, overview, review, staleness, cancellation,
       (await call(`projects/${id}/source?path=../x.ts`)).status,
       404,
     );
+
+    // Coding agents write through `sidenote mcp`: JSON-RPC over stdio, validated by the service.
+    const agent = spawn(
+      process.execPath,
+      [resolve("dist/cli/main.js"), "mcp"],
+      {
+        env: { ...process.env, SIDENOTE_HOME: home },
+      },
+    );
+    const replies = new Map();
+    let buffered = "";
+    agent.stdout.on("data", (chunk) => {
+      buffered += chunk;
+      let nl;
+      while ((nl = buffered.indexOf("\n")) >= 0) {
+        const msg = JSON.parse(buffered.slice(0, nl));
+        buffered = buffered.slice(nl + 1);
+        replies.get(msg.id)?.(msg);
+      }
+    });
+    let next = 0;
+    const rpc = (method, params = {}) =>
+      new Promise((done) => {
+        const n = ++next;
+        replies.set(n, done);
+        agent.stdin.write(
+          JSON.stringify({ jsonrpc: "2.0", id: n, method, params }) + "\n",
+        );
+      });
+    const callTool = async (name, args) =>
+      (await rpc("tools/call", { name, arguments: args })).result;
+    try {
+      const init = await rpc("initialize", {
+        protocolVersion: "2025-06-18",
+        capabilities: {},
+        clientInfo: { name: "claude-code", version: "1" },
+      });
+      assert.equal(init.result.serverInfo.name, "source-sidenote");
+      agent.stdin.write(
+        JSON.stringify({
+          jsonrpc: "2.0",
+          method: "notifications/initialized",
+        }) + "\n",
+      );
+      const names = (await rpc("tools/list")).result.tools.map((t) => t.name);
+      assert.ok(
+        names.includes("submit_explanation") && names.includes("get_guide"),
+      );
+      assert.match(
+        (await callTool("get_guide", {})).content[0].text,
+        /写作风格/,
+      );
+      const prompt = await rpc("prompts/get", {
+        name: "explain_topic",
+        arguments: { topic: topic.id },
+      });
+      assert.match(
+        prompt.result.messages[0].content.text,
+        new RegExp(topic.id),
+      );
+      const view = JSON.parse(
+        (await callTool("get_topic", { topic: topic.id })).content[0].text,
+      );
+      assert.equal(view.projectRoot, project.root);
+      assert.deepEqual(
+        view.files.map((f) => f.path),
+        ["hello.ts"],
+      );
+      // Bad line numbers come back as a tool error the agent can act on.
+      const bad = await callTool("submit_explanation", {
+        topic: topic.id,
+        path: "hello.ts",
+        explanation: {
+          ...explanation,
+          evidence: [{ start: 1, end: 99, explanation: "x" }],
+        },
+      });
+      assert.equal(bad.isError, true);
+      assert.match(bad.content[0].text, /说明不合格/);
+      const ok = await callTool("submit_explanation", {
+        topic: topic.id,
+        path: "hello.ts",
+        explanation: {
+          ...explanation,
+          summary: "Agent 写的说明。",
+          scenario: ["先这样", "再那样"],
+        },
+      });
+      assert.notEqual(ok.isError, true);
+      const written = await api(doc);
+      assert.equal(written.model, "agent:claude-code");
+      assert.equal(written.explanation.summary, "Agent 写的说明。");
+      assert.deepEqual(written.explanation.scenario, ["先这样", "再那样"]);
+      // Attributed to the agent, it counts as fresh whatever model the topic is set to.
+      assert.equal(written.status, "fresh");
+      const story = JSON.parse(
+        (
+          await callTool("submit_story", {
+            topic: topic.id,
+            question: "hello 怎么返回",
+            steps: [
+              {
+                path: "hello.ts",
+                start: 1,
+                end: 1,
+                title: "看定义",
+                narration: "先看函数。",
+              },
+              {
+                path: "hello.ts",
+                start: 1,
+                end: 2,
+                title: "看返回",
+                narration: "再看返回值。",
+              },
+            ],
+          })
+        ).content[0].text,
+      );
+      assert.equal(story.steps, 2);
+      const created = JSON.parse(
+        (
+          await callTool("create_topic", {
+            project: id,
+            request: "other 是什么",
+            files: [
+              { path: "other.ts", reason: "定义" },
+              { path: "nope.ts", reason: "不存在" },
+            ],
+          })
+        ).content[0].text,
+      );
+      assert.equal(created.files, 1);
+      assert.equal((await api(`topics/${created.id}`)).state, "confirmed");
+      await api(`topics/${created.id}`, undefined, "DELETE");
+    } finally {
+      agent.kill();
+    }
 
     // A failed plan can be retried; deleting a topic removes what it generated.
     planned = [{ path: "missing.ts", reason: "" }];
