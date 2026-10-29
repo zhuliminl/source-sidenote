@@ -80,8 +80,30 @@ const defaultSize: Record<Mode, Size> = {
 };
 const MIN: Size = { w: 300, h: 240 };
 
-/** A size the reader drags from the top-right corner; remembered per map mode. */
-function useResizable(key: string, fallback: Size, spot: Spot) {
+const resizeEdges: [Edge, string][] = [
+  ["n", "inset-x-4 top-0 h-2 cursor-ns-resize"],
+  ["s", "inset-x-4 bottom-0 h-2 cursor-ns-resize"],
+  ["e", "inset-y-4 right-0 w-2 cursor-ew-resize"],
+  ["w", "inset-y-4 left-0 w-2 cursor-ew-resize"],
+  ["ne", "top-0 right-0 size-4 cursor-nesw-resize"],
+  ["sw", "bottom-0 left-0 size-4 cursor-nesw-resize"],
+  ["nw", "top-0 left-0 size-4 cursor-nwse-resize"],
+  ["se", "right-0 bottom-0 size-4 cursor-nwse-resize"],
+];
+
+type Edge = "n" | "s" | "e" | "w" | "ne" | "nw" | "se" | "sw";
+
+/**
+ * A size the reader drags from any edge or corner; remembered per map mode. The card is
+ * anchored by its bottom-left corner, so dragging the left or bottom edge also moves it,
+ * keeping the opposite edge where it was.
+ */
+function useResizable(
+  key: string,
+  fallback: Size,
+  spot: Spot,
+  place: (spot: Spot, remember: boolean) => void,
+) {
   const [size, setSize] = useState<Size>(() => storage.get(key, fallback));
   useEffect(() => setSize(storage.get(key, fallback)), [key]);
   const fit = (s: Size): Size => ({
@@ -90,26 +112,66 @@ function useResizable(key: string, fallback: Size, spot: Spot) {
       Math.max(MIN.h, Math.min(s.h, innerHeight - spot.bottom - 8)),
     ),
   });
-  const drag = useRef<{ x: number; y: number; from: Size } | null>(null);
-  const handle = {
+  const drag = useRef<{
+    edge: Edge;
+    x: number;
+    y: number;
+    from: Size;
+    at: Spot;
+    /** What the last move produced; saved on release even if it has not rendered yet. */
+    now: { size: Size; spot: Spot };
+  } | null>(null);
+
+  const handle = (edge: Edge) => ({
     onPointerDown(e: React.PointerEvent<HTMLElement>) {
       if (e.button !== 0) return;
       e.stopPropagation();
-      drag.current = { x: e.clientX, y: e.clientY, from: size };
+      drag.current = {
+        edge,
+        x: e.clientX,
+        y: e.clientY,
+        from: fit(size),
+        at: spot,
+        now: { size: fit(size), spot },
+      };
       e.currentTarget.setPointerCapture(e.pointerId);
     },
     onPointerMove(e: React.PointerEvent<HTMLElement>) {
       const d = drag.current;
       if (!d) return;
-      setSize(
-        fit({ w: d.from.w + e.clientX - d.x, h: d.from.h - (e.clientY - d.y) }),
-      );
+      const dx = e.clientX - d.x;
+      const dy = e.clientY - d.y;
+      const between = (v: number, max: number, min: number) =>
+        Math.round(Math.max(min, Math.min(v, max)));
+      let { w, h } = d.from;
+      let { left, bottom } = d.at;
+      const right = d.at.left + d.from.w;
+      const top = innerHeight - d.at.bottom - d.from.h;
+      if (d.edge.includes("e"))
+        w = between(d.from.w + dx, innerWidth - 8 - left, MIN.w);
+      if (d.edge.includes("w")) {
+        w = between(d.from.w - dx, right - 8, MIN.w);
+        left = right - w;
+      }
+      if (d.edge.includes("n"))
+        h = between(d.from.h - dy, innerHeight - 8 - bottom, MIN.h);
+      if (d.edge.includes("s")) {
+        h = between(d.from.h + dy, innerHeight - 8 - top, MIN.h);
+        bottom = innerHeight - top - h;
+      }
+      d.now = { size: { w, h }, spot: { left, bottom } };
+      setSize({ w, h });
+      if (left !== d.at.left || bottom !== d.at.bottom)
+        place({ left, bottom }, false);
     },
     onPointerUp() {
-      if (drag.current) setSize((s) => (storage.set(key, s), s));
+      const d = drag.current;
+      if (!d) return;
       drag.current = null;
+      storage.set(key, d.now.size);
+      place(d.now.spot, true);
     },
-  };
+  });
   return { size: fit(size), handle };
 }
 
@@ -183,7 +245,15 @@ function useDraggable(key: string, fallback: Spot) {
     moved.current = false;
     return m;
   };
-  return { spot, el, handle, refit, wasDragged };
+  /** Moves the element (e.g. while resizing from its left or bottom edge). */
+  const place = useCallback(
+    (next: Spot, remember: boolean) => {
+      setSpot(next);
+      if (remember) storage.set(key, next);
+    },
+    [key],
+  );
+  return { spot, el, handle, refit, wasDragged, place };
 }
 
 /**
@@ -222,13 +292,14 @@ export function TopicMinimap({
     if (expanded) setBigMode(mode);
   }, [expanded, mode]);
   const list = useRef<HTMLOListElement>(null);
-  // Default: the window's bottom-left corner, just above the sidebar's settings row.
-  const float = useDraggable("sidenote-map-spot", { left: 12, bottom: 60 });
+  // Default: the window's bottom-left corner.
+  const float = useDraggable("sidenote-map-spot", { left: 12, bottom: 12 });
   const { refit } = float;
   const size = useResizable(
     `sidenote-map-size:${mode}`,
     defaultSize[mode],
     float.spot,
+    float.place,
   );
 
   // Tell panels underneath where the map is, so they can end above it instead of being covered.
@@ -315,25 +386,15 @@ export function TopicMinimap({
           style={{ ...float.spot, width: size.size.w, height: size.size.h }}
           className="fixed z-40 flex flex-col overflow-hidden rounded-2xl border bg-popover shadow-xl animate-in fade-in-0 zoom-in-95"
         >
-          {/* Anchored bottom-left, so the card grows from its top-right corner. */}
-          <div
-            {...size.handle}
-            aria-hidden
-            title="拖动调整大小"
-            className="group/resize absolute top-0 right-0 z-10 flex size-3.5 cursor-nesw-resize touch-none items-start justify-end"
-          >
-            <svg
-              viewBox="0 0 10 10"
-              className="m-0.5 size-2.5 text-subtle-foreground opacity-50 group-hover/resize:opacity-100"
-            >
-              <path
-                d="M2 1 H9 V8 M5 1 H9 V5"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.2"
-              />
-            </svg>
-          </div>
+          {/* Resize from any edge or corner. */}
+          {resizeEdges.map(([edge, place]) => (
+            <div
+              key={edge}
+              {...size.handle(edge)}
+              aria-hidden
+              className={cn("absolute z-10 touch-none", place)}
+            />
+          ))}
           <header
             {...float.handle}
             title="拖动可移动位置"

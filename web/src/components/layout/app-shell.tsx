@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link, Outlet, useLocation } from "react-router";
-import { SquarePen } from "lucide-react";
+import { Link, NavLink, Outlet, useLocation, useMatch } from "react-router";
+import { Settings, SquarePen } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Tooltip,
@@ -9,6 +9,7 @@ import {
 } from "@/components/ui/tooltip";
 import { useLiveUpdates } from "@/hooks/use-live-updates";
 import { useMediaQuery } from "@/hooks/use-media-query";
+import { useConfig } from "@/lib/queries";
 import { cn } from "@/lib/utils";
 import { Sidebar } from "./sidebar";
 import { SidebarToggle } from "./sidebar-toggle";
@@ -63,10 +64,38 @@ export function AppShell() {
         </aside>
         <main className="relative flex min-w-0 flex-1 flex-col">
           {!sidebarOpen && <CollapsedControls />}
+          <SettingsButton />
           <Outlet />
         </main>
       </div>
     </UiContext.Provider>
+  );
+}
+
+/** Settings live in the top-right corner, clear of the floating topic map at the bottom-left. */
+function SettingsButton() {
+  const config = useConfig();
+  const model = config.data?.model;
+  const active = useMatch("/settings/*");
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <NavLink
+          to="/settings"
+          aria-label="设置"
+          // A plain string: the tooltip trigger merges classNames and cannot take NavLink's function form.
+          className={cn(
+            "absolute top-2.5 right-3 z-20 flex size-9 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-accent hover:text-foreground",
+            active && "bg-accent text-foreground",
+          )}
+        >
+          <Settings className="size-[18px]" />
+        </NavLink>
+      </TooltipTrigger>
+      <TooltipContent side="bottom" align="end">
+        设置 · 默认模型 {model || "未选择"}
+      </TooltipContent>
+    </Tooltip>
   );
 }
 

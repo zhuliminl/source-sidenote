@@ -2,7 +2,10 @@ import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
 import { useUi } from "./ui-state";
 
-/** Sticky 56px top bar; leaves room for the floating controls when the sidebar is hidden. */
+/**
+ * Sticky 56px top bar; leaves room for the floating controls when the sidebar is hidden,
+ * and on the right for the settings button the shell pins to the corner.
+ */
 export function PageHeader({
   children,
   className,
@@ -14,7 +17,7 @@ export function PageHeader({
   return (
     <header
       className={cn(
-        "flex h-14 shrink-0 items-center gap-2 px-3",
+        "flex h-14 shrink-0 items-center gap-2 pr-14 pl-3",
         !sidebarOpen && "pl-[92px]",
         className,
       )}

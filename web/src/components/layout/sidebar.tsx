@@ -4,7 +4,6 @@ import {
   ListChecks,
   ScrollText,
   Loader2,
-  Settings,
   SquarePen,
 } from "lucide-react";
 import type { ProjectSummary } from "@shared/api";
@@ -13,7 +12,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Logo } from "@/components/logo";
 import { ProjectActionsMenu } from "@/features/project/project-actions";
-import { useConfig, useJobs, useProjects } from "@/lib/queries";
+import { useJobs, useProjects } from "@/lib/queries";
 import { cn } from "@/lib/utils";
 import { SidebarToggle } from "./sidebar-toggle";
 
@@ -22,7 +21,6 @@ const rowClass =
 
 export function Sidebar() {
   const jobs = useJobs();
-  const config = useConfig();
   const active = jobs.data?.filter(
     (j) => j.state === "queued" || j.state === "running",
   ).length;
@@ -82,26 +80,6 @@ export function Sidebar() {
       <ScrollArea className="min-h-0 flex-1 px-2">
         <ProjectList />
       </ScrollArea>
-
-      <div className="border-t border-sidebar-border p-2">
-        <NavLink
-          to="/settings"
-          className={({ isActive }) =>
-            cn(rowClass, isActive && "bg-sidebar-accent")
-          }
-        >
-          <Settings className="size-4" />
-          设置
-          {config.data && (
-            <span
-              title="默认模型"
-              className="ml-auto max-w-32 truncate font-mono text-[11px] text-subtle-foreground"
-            >
-              {config.data.model || "未选择模型"}
-            </span>
-          )}
-        </NavLink>
-      </div>
     </nav>
   );
 }
