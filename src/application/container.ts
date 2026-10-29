@@ -6,11 +6,13 @@ import {
   FileRepository,
   JobRepository,
   ProjectRepository,
+  StoryRepository,
   TopicRepository,
 } from "../infrastructure/persistence/repositories.js";
 import { AppEvents } from "./events.js";
 import { ProjectService } from "./project-service.js";
 import { TopicService } from "./topic-service.js";
+import { StoryService } from "./story-service.js";
 import { ConfigService } from "./config-service.js";
 import { JobWorker } from "./job-worker.js";
 
@@ -23,6 +25,7 @@ export function createContainer(home: string) {
     files: new FileRepository(db),
     topics: new TopicRepository(db),
     docs: new DocumentRepository(db),
+    stories: new StoryRepository(db),
     jobs: new JobRepository(db),
     config: new ConfigStore(home),
     events,
@@ -33,6 +36,7 @@ export function createContainer(home: string) {
     ...deps,
     projectService,
     topicService: new TopicService(deps, projectService),
+    storyService: new StoryService(deps),
     configService: new ConfigService(deps.config, events),
     worker: new JobWorker(deps),
     close: () => db.close(),

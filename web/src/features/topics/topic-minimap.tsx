@@ -347,9 +347,9 @@ export function TopicMinimap({
     const onKey = (e: KeyboardEvent) => {
       if (e.code !== "KeyM" || e.metaKey || e.ctrlKey || e.altKey) return;
       if (e.repeat || e.isComposing) return;
-      const target = e.target as HTMLElement | null;
+      const target = e.target as Partial<Element> | null;
       if (
-        target?.closest(
+        target?.closest?.(
           "input, textarea, select, [contenteditable]:not([contenteditable=false])",
         )
       )

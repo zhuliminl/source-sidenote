@@ -1,4 +1,9 @@
-import type { Explanation, Review, TopicOverview } from "../shared/api.js";
+import type {
+  Explanation,
+  Review,
+  StoryStep,
+  TopicOverview,
+} from "../shared/api.js";
 
 const isStringArray = (v: unknown): v is string[] =>
   Array.isArray(v) && v.every((s) => typeof s === "string");
@@ -209,5 +214,64 @@ export function validateOverview(
       v.diagramLinks,
       (l) => typeof l.path === "string" && paths.has(l.path),
     ).map(({ node, path }) => ({ node, path })),
+    questions: isStringArray(v.questions)
+      ? v.questions
+          .map((q) => q.trim())
+          .filter(Boolean)
+          .slice(0, 5)
+          .map((q) => q.slice(0, 60))
+      : [],
+  };
+}
+
+const MAX_STEP_LINES = 80;
+
+/**
+ * Keeps story steps that point at real lines of a topic file. Long ranges are cut to their first
+ * lines so a step always fits on screen. Fewer than two usable steps is not a story.
+ */
+export function validateStory(
+  value: unknown,
+  lineCounts: ReadonlyMap<string, number>,
+): { title: string; steps: StoryStep[] } {
+  const v = value as { title?: unknown; steps?: unknown };
+  if (!v || !Array.isArray(v.steps)) throw new Error("Invalid story steps");
+  const steps = (v.steps as Partial<StoryStep>[])
+    .filter(
+      (s) =>
+        typeof s?.path === "string" &&
+        lineCounts.has(s.path) &&
+        Number.isInteger(s.start) &&
+        Number.isInteger(s.end) &&
+        s.start! >= 1 &&
+        s.start! <= s.end! &&
+        s.start! <= lineCounts.get(s.path)!,
+    )
+    .slice(0, 30)
+    .map((s) => {
+      const end = Math.min(
+        s.end!,
+        lineCounts.get(s.path!)!,
+        s.start! + MAX_STEP_LINES - 1,
+      );
+      return {
+        path: s.path!,
+        start: s.start!,
+        end,
+        title:
+          typeof s.title === "string" && s.title.trim()
+            ? s.title.trim().slice(0, 24)
+            : s.path!.slice(s.path!.lastIndexOf("/") + 1),
+        narration:
+          typeof s.narration === "string"
+            ? s.narration.trim().slice(0, 300)
+            : "",
+      };
+    });
+  if (steps.length < 2)
+    throw new Error("Story has fewer than two usable steps");
+  return {
+    title: typeof v.title === "string" ? v.title.trim().slice(0, 40) : "",
+    steps,
   };
 }

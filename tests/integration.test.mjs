@@ -78,7 +78,7 @@ test("a single-model config from older versions becomes a provider", async () =>
 test("topics: plan, confirm, explain, overview, review, staleness, cancellation, restart and delete", async () => {
   const home = await mkdtemp(join(tmpdir(), "sidenote-home-"));
   const root = await mkdtemp(join(tmpdir(), "sidenote-project-"));
-  const calls = { plan: 0, explain: 0, overview: 0, review: 0 };
+  const calls = { plan: 0, explain: 0, overview: 0, review: 0, story: 0 };
   let delay = 0;
   let planned = [
     { path: "hello.ts", reason: "入口" },
@@ -106,13 +106,15 @@ test("topics: plan, confirm, explain, overview, review, staleness, cancellation,
       );
     // Connection tests from the settings page.
     if (system.includes("连接测试")) return reply({ ok: true });
-    const kind = system.includes("挑选")
-      ? "plan"
-      : system.includes("导读")
-        ? "overview"
-        : system.includes("复查")
-          ? "review"
-          : "explain";
+    const kind = system.includes("录制")
+      ? "story"
+      : system.includes("挑选")
+        ? "plan"
+        : system.includes("导读")
+          ? "overview"
+          : system.includes("复查")
+            ? "review"
+            : "explain";
     calls[kind]++;
     await new Promise((r) => setTimeout(r, kind === "explain" ? delay : 0));
     const answers = {
@@ -125,8 +127,29 @@ test("topics: plan, confirm, explain, overview, review, staleness, cancellation,
           { path: "ghost.ts", description: "x" },
         ],
         caveats: [],
+        questions: ["hello 返回什么", ""],
       },
       review: { verdict: "pass", issues: [] },
+      story: {
+        title: "跟着 hello 走",
+        steps: [
+          {
+            path: "hello.ts",
+            start: 1,
+            end: 1,
+            title: "定义",
+            narration: "看函数",
+          },
+          { path: "ghost.ts", start: 1, end: 1, title: "编造", narration: "x" },
+          {
+            path: "hello.ts",
+            start: 1,
+            end: 99,
+            title: "返回",
+            narration: "返回 1",
+          },
+        ],
+      },
     };
     reply(answers[kind]);
   });
@@ -222,7 +245,7 @@ test("topics: plan, confirm, explain, overview, review, staleness, cancellation,
     const prompts = await api("prompts");
     assert.deepEqual(
       prompts.map((p) => p.id),
-      ["plan", "explain", "overview", "review"],
+      ["plan", "explain", "overview", "story", "review"],
     );
 
     let topic = await api(`projects/${id}/topics`, {
@@ -286,6 +309,31 @@ test("topics: plan, confirm, explain, overview, review, staleness, cancellation,
     // Refreshing a topic whose explanations are all fresh calls nothing.
     assert.equal((await api(`topics/${topic.id}/refresh`, {})).queued, 0);
     assert.equal(calls.explain, 1);
+
+    // The walkthrough suggests questions; a story records a replayable walk for one of them.
+    assert.deepEqual(topic.overview.questions, ["hello 返回什么"]);
+    const story = await api(`topics/${topic.id}/stories`, {
+      question: topic.overview.questions[0],
+    });
+    assert.equal(story.state, "generating");
+    await until(
+      async () =>
+        (await api(`topics/${topic.id}/stories`))[0].state === "ready",
+    );
+    const [recorded] = await api(`topics/${topic.id}/stories`);
+    assert.equal(recorded.title, "跟着 hello 走");
+    assert.equal(recorded.model, "fixture");
+    // Files outside the topic are dropped and ranges are kept inside the file.
+    assert.deepEqual(
+      recorded.steps.map((s) => [s.path, s.start, s.end]),
+      [
+        ["hello.ts", 1, 1],
+        ["hello.ts", 1, 2],
+      ],
+    );
+    assert.equal(calls.story, 1);
+    await api(`stories/${story.id}`, undefined, "DELETE");
+    assert.deepEqual(await api(`topics/${topic.id}/stories`), []);
 
     await api(`topics/${topic.id}/run`, { path: "hello.ts", kind: "review" });
     await until(async () => (await api(doc)).review?.verdict === "pass");

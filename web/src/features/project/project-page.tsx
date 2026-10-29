@@ -10,7 +10,11 @@ import {
   Plus,
   RefreshCw,
 } from "lucide-react";
-import type { ProjectSummary, TopicView as Topic } from "@shared/api";
+import type {
+  ProjectSummary,
+  StoryStep,
+  TopicView as Topic,
+} from "@shared/api";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -31,6 +35,7 @@ import {
   useJobs,
   useProjects,
   useRefreshTopic,
+  useStories,
   useTopic,
   useTopics,
 } from "@/lib/queries";
@@ -43,6 +48,8 @@ import { ExplanationPanel } from "./explanation-panel";
 import { ProjectOverview, topicStateLabel } from "./project-overview";
 import { TopicView } from "../topics/topic-view";
 import { TopicMinimap } from "../topics/topic-minimap";
+import { StoryBar } from "../stories/story-bar";
+import { StoryMenu } from "../stories/story-menu";
 import { useMapOverlap } from "../topics/map-rect";
 import { CreateTopicDialog } from "../topics/create-topic-dialog";
 
@@ -69,15 +76,22 @@ const safeStorage = {
   },
 };
 
-/** Reader state lives in the URL (?topic=…&file=…&lines=12-30) so views can be linked and revisited. */
+/**
+ * Reader state lives in the URL (?topic=…&file=…&lines=12-30, plus &story=…&step=3 while a
+ * story plays) so views can be linked, revisited and stepped through with browser history.
+ */
 function useReaderState() {
   const [params, setParams] = useSearchParams();
   const topic = params.get("topic");
   const file = params.get("file");
   const focus = parseLines(params.get("lines"));
+  const story = params.get("story");
+  const step = Math.max(0, Number(params.get("step") ?? 0) || 0);
+  // Opening a file by hand keeps the story bar, so the reader can wander off and come back.
   const select = (path: string | null) =>
     setParams({
       ...(topic ? { topic } : {}),
+      ...(story ? { story, step: String(step) } : {}),
       ...(path ? { file: path } : {}),
     });
   // Switching topics keeps the open file, so the same code can be read through another topic.
@@ -102,7 +116,33 @@ function useReaderState() {
       },
       { replace: true },
     );
-  return { topic, file, focus, select, selectTopic, setFocus };
+  /** Shows one step of a story: its file, its lines, and the bar at that position. */
+  const playStep = (id: string, index: number, s: StoryStep | undefined) =>
+    setParams({
+      ...(topic ? { topic } : {}),
+      story: id,
+      step: String(index),
+      ...(s ? { file: s.path, lines: `${s.start}-${s.end}` } : {}),
+    });
+  const closeStory = () =>
+    setParams((prev) => {
+      const next = new URLSearchParams(prev);
+      next.delete("story");
+      next.delete("step");
+      return next;
+    });
+  return {
+    topic,
+    file,
+    focus,
+    story,
+    step,
+    select,
+    selectTopic,
+    setFocus,
+    playStep,
+    closeStory,
+  };
 }
 
 export function ProjectPage() {
@@ -131,6 +171,17 @@ function Reader({ project }: { project: ProjectSummary }) {
   const topicQuery = useTopic(state.topic);
   const topic = topicQuery.data ?? null;
   const [creating, setCreating] = useState(false);
+  const stories = useStories(topic?.state === "confirmed" ? topic.id : null);
+  const story = stories.data?.find((s) => s.id === state.story) ?? null;
+  const playStep = (i: number) =>
+    story && state.playStep(story.id, i, story.steps[i]);
+  // A story picked while it was still recording jumps to its step once it is ready.
+  const wasReady = useRef(story?.state === "ready");
+  useEffect(() => {
+    const ready = story?.state === "ready";
+    if (ready && !wasReady.current) playStep(state.step);
+    wasReady.current = ready;
+  }, [story?.state]);
   const wide = useMediaQuery("(min-width: 1100px)");
   // Remember the column widths the reader dragged to, separately for reading and overview.
   const layout = useDefaultLayout({
@@ -220,6 +271,20 @@ function Reader({ project }: { project: ProjectSummary }) {
           onSelect={(id) => state.selectTopic(id, Boolean(id))}
           onCreate={() => setCreating(true)}
         />
+        {topic?.state === "confirmed" && (
+          <>
+            <span className="text-subtle-foreground max-sm:hidden">/</span>
+            <span className="max-sm:hidden">
+              <StoryMenu
+                topic={topic}
+                stories={stories.data ?? []}
+                current={story}
+                onSelect={(s) => state.playStep(s.id, 0, s.steps[0])}
+                onClose={state.closeStory}
+              />
+            </span>
+          </>
+        )}
         <div className="ml-auto flex items-center gap-2">
           {topic && state.file && (
             <Button
@@ -248,6 +313,14 @@ function Reader({ project }: { project: ProjectSummary }) {
 
       {/* The topic map floats above everything (fixed, draggable); it is mounted here for its data. */}
       <div className="relative min-h-0 flex-1 border-t">
+        {story && (
+          <StoryBar
+            story={story}
+            step={state.step}
+            onStep={playStep}
+            onClose={state.closeStory}
+          />
+        )}
         {topic?.state === "confirmed" && medium && (
           <TopicMinimap
             topic={topic}

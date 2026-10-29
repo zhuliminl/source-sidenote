@@ -9,6 +9,7 @@ import type {
   ConfigUpdate,
   ProviderInput,
   RunResult,
+  StoryCreate,
   TopicConfirm,
   TopicReplan,
   TopicCreate,
@@ -36,6 +37,7 @@ export const keys = {
   topicsRoot: ["topics"] as const,
   topics: (project: string) => ["topics", "project", project] as const,
   topic: (topic: string) => ["topics", topic] as const,
+  stories: (topic: string) => ["topics", topic, "stories"] as const,
   document: (topic: string, path: string) =>
     ["topics", topic, "document", path] as const,
   jobs: ["jobs"] as const,
@@ -163,6 +165,45 @@ export function useRunFile() {
       invalidate();
     },
   });
+}
+
+export const useStories = (topic: string | null) =>
+  useQuery({
+    queryKey: keys.stories(topic ?? ""),
+    queryFn: () => api.stories(topic!),
+    enabled: Boolean(topic),
+    // Poll while a story is being recorded; SSE also refreshes it when the job ends.
+    refetchInterval: (q) =>
+      q.state.data?.some((s) => s.state === "generating") ? 4000 : false,
+  });
+
+export function useCreateStory(topic: string) {
+  const invalidate = useInvalidateTopics();
+  return useMutation({
+    mutationFn: (body: StoryCreate) => api.createStory(topic, body),
+    onSuccess: invalidate,
+  });
+}
+
+export function useStoryIdeas() {
+  const invalidate = useInvalidateTopics();
+  return useMutation({
+    mutationFn: api.storyIdeas,
+    onSuccess: (r) => {
+      toast(r.queued ? "已让 AI 重新写导读并推荐故事" : "导读正在生成中");
+      invalidate();
+    },
+  });
+}
+
+export function useRetryStory() {
+  const invalidate = useInvalidateTopics();
+  return useMutation({ mutationFn: api.retryStory, onSuccess: invalidate });
+}
+
+export function useRemoveStory() {
+  const invalidate = useInvalidateTopics();
+  return useMutation({ mutationFn: api.removeStory, onSuccess: invalidate });
 }
 
 export function useRemoveTopic() {

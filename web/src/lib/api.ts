@@ -15,6 +15,8 @@ import type {
   RunResult,
   SourceView,
   StatusView,
+  StoryCreate,
+  StoryView,
   TopicConfirm,
   TopicReplan,
   TopicCreate,
@@ -84,6 +86,16 @@ export const api = {
   createTopic: (project: string, body: TopicCreate) =>
     request<TopicView>("POST", `projects/${id(project)}/topics`, body),
   topic: (topic: string) => request<TopicView>("GET", `topics/${id(topic)}`),
+  stories: (topic: string) =>
+    request<StoryView[]>("GET", `topics/${id(topic)}/stories`),
+  createStory: (topic: string, body: StoryCreate) =>
+    request<StoryView>("POST", `topics/${id(topic)}/stories`, body),
+  storyIdeas: (topic: string) =>
+    request<RunResult>("POST", `topics/${id(topic)}/story-ideas`, {}),
+  retryStory: (story: string) =>
+    request<StoryView>("POST", `stories/${id(story)}/retry`, {}),
+  removeStory: (story: string) =>
+    request<{ ok: true }>("DELETE", `stories/${id(story)}`),
   removeTopic: (topic: string) =>
     request<{ ok: true }>("DELETE", `topics/${id(topic)}`),
   replan: (topic: string, body: TopicReplan) =>

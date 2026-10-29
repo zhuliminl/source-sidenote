@@ -4,7 +4,7 @@
  * plan: AI picks the files for a topic. generate: explain one file within a topic.
  * review: AI second opinion on one explanation. overview: stitch the topic's files into one walkthrough.
  */
-export type JobKind = "plan" | "generate" | "review" | "overview";
+export type JobKind = "plan" | "generate" | "review" | "overview" | "story";
 export type JobState = "queued" | "running" | "done" | "failed" | "cancelled";
 export type DocumentStatus = "missing" | "fresh" | "stale";
 export type FileStatus = DocumentStatus | "unavailable";
@@ -64,6 +64,39 @@ export interface TopicOverview {
   diagram: string;
   /** Flowchart node id → the topic file it stands for. */
   diagramLinks: { node: string; path: string }[];
+  /** Questions worth recording as stories; empty in walkthroughs from before stories existed. */
+  questions: string[];
+}
+
+export type StoryState = "generating" | "ready" | "failed";
+
+/** One frame of a story: open this file, look at these lines, read this. */
+export interface StoryStep {
+  path: string;
+  start: number;
+  end: number;
+  title: string;
+  narration: string;
+}
+
+/** A recorded walk through a topic's code that answers one question, replayable step by step. */
+export interface StoryView {
+  id: string;
+  topic: string;
+  question: string;
+  title: string;
+  state: StoryState;
+  error: string | null;
+  provider: string | null;
+  model: string | null;
+  steps: StoryStep[];
+  created: string;
+}
+
+export interface StoryCreate {
+  question: string;
+  /** Defaults to the topic's model. */
+  model?: ActiveModel;
 }
 
 export interface Review {
@@ -150,7 +183,7 @@ export type DocumentView =
     };
 
 export interface PromptView {
-  id: "plan" | "explain" | "overview" | "review";
+  id: "plan" | "explain" | "overview" | "story" | "review";
   title: string;
   /** When the prompt is used. */
   usage: string;

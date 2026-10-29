@@ -22,6 +22,7 @@ const kindLabel: Record<JobKind, string> = {
   generate: "生成说明",
   review: "复查",
   overview: "链路导读",
+  story: "录制故事",
 };
 
 const states: Record<

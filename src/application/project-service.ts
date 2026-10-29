@@ -12,6 +12,7 @@ import type {
   DocumentRepository,
   FileRepository,
   JobRepository,
+  StoryRepository,
   ProjectRepository,
   TopicRepository,
 } from "../infrastructure/persistence/repositories.js";
@@ -24,6 +25,7 @@ export interface ProjectDeps {
   files: FileRepository;
   topics: TopicRepository;
   docs: DocumentRepository;
+  stories: StoryRepository;
   jobs: JobRepository;
   config: ConfigStore;
   events: AppEvents;

@@ -16,6 +16,7 @@ import type {
   RunResult,
   SourceView,
   StatusView,
+  StoryView,
   TopicSummary,
   TopicView,
 } from "../../shared/api.js";
@@ -50,6 +51,8 @@ const topicConfirm = z.object({
     .max(100),
   instructions: text.optional(),
 });
+const storyCreate = z.object({ question: text, model: modelChoice });
+const storyRetry = z.object({ model: modelChoice }).default({});
 const fileRun = z.object({
   path: z.string().min(1),
   kind: z.enum(["generate", "review"]),
@@ -63,6 +66,7 @@ export function registerRoutes(
   const {
     projectService: projects,
     topicService: topics,
+    storyService: stories,
     configService: config,
     worker,
   } = c;
@@ -164,6 +168,25 @@ export function registerRoutes(
   app.post("/api/topics/:id/run", (req): Promise<RunResult> => {
     const { path, kind } = fileRun.parse(req.body);
     return topics.runFile(idParams.parse(req.params).id, path, kind);
+  });
+  app.get("/api/topics/:id/stories", async (req): Promise<StoryView[]> =>
+    stories.list(idParams.parse(req.params).id),
+  );
+  app.post("/api/topics/:id/stories", async (req): Promise<StoryView> =>
+    stories.create(idParams.parse(req.params).id, storyCreate.parse(req.body)),
+  );
+  app.post("/api/topics/:id/story-ideas", async (req): Promise<RunResult> =>
+    stories.suggest(idParams.parse(req.params).id),
+  );
+  app.post("/api/stories/:id/retry", async (req): Promise<StoryView> =>
+    stories.retry(
+      idParams.parse(req.params).id,
+      storyRetry.parse(req.body ?? {}).model,
+    ),
+  );
+  app.delete("/api/stories/:id", async (req) => {
+    stories.remove(idParams.parse(req.params).id);
+    return { ok: true };
   });
   app.get("/api/topics/:id/document", (req): Promise<DocumentView> =>
     topics.document(

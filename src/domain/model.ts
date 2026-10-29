@@ -5,6 +5,7 @@ import type {
   JobState,
   ProviderModel,
   Review,
+  StoryState,
   TopicState,
 } from "../shared/api.js";
 
@@ -34,6 +35,21 @@ export interface Topic {
   provider: string | null;
   model: string | null;
   overview: string | null;
+  created: string;
+}
+
+export interface Story {
+  id: string;
+  topic: string;
+  project: string;
+  question: string;
+  title: string;
+  state: StoryState;
+  error: string | null;
+  provider: string | null;
+  model: string | null;
+  /** JSON StoryStep[] */
+  steps: string;
   created: string;
 }
 

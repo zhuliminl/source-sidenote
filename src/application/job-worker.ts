@@ -1,6 +1,6 @@
 import type { Job, Topic } from "../domain/model.js";
 import { PROMPT_VERSION, topicModel } from "../domain/model.js";
-import type { Explanation } from "../shared/api.js";
+import type { ActiveModel, Explanation } from "../shared/api.js";
 import {
   keepKnownRelations,
   renderMarkdown,
@@ -8,12 +8,14 @@ import {
   validateOverview,
   validatePlan,
   validateReview,
+  validateStory,
 } from "../domain/explanation.js";
 import { completeJson } from "../infrastructure/llm/client.js";
 import {
   explanationMessages,
   overviewMessages,
   planMessages,
+  storyMessages,
   reviewMessages,
 } from "../infrastructure/llm/prompts.js";
 import { projectOverview } from "../infrastructure/source/context.js";
@@ -91,6 +93,7 @@ export class JobWorker {
     try {
       if (job.kind === "plan") await this.plan(job, signal);
       else if (job.kind === "overview") await this.overview(job, signal);
+      else if (job.kind === "story") await this.story(job, signal);
       else await this.explain(job, signal);
       this.deps.jobs.finish(job.id, "done");
     } catch (error) {
@@ -115,6 +118,17 @@ export class JobWorker {
         });
         this.deps.events.changed("topics");
       }
+      if (
+        job.kind === "story" &&
+        state !== "queued" &&
+        this.deps.stories.find(job.path)
+      ) {
+        this.deps.stories.update(job.path, {
+          state: "failed",
+          error: state === "cancelled" ? "已取消" : message,
+        });
+        this.deps.events.changed("topics");
+      }
     }
   }
 
@@ -123,7 +137,7 @@ export class JobWorker {
     const topic = topics.get(job.topic);
     const p = projects.get(job.project);
     const manifest = files.list(job.project);
-    const cfg = this.model(topic);
+    const cfg = this.model(topicModel(topic));
     const result = await completeJson(
       cfg,
       planMessages(
@@ -163,7 +177,7 @@ export class JobWorker {
     if (!manifest.some((f) => f.path === job.path))
       throw new Error("File excluded or removed");
     const before = await snapshot(p.root, manifest, job.path);
-    const cfg = this.model(topic);
+    const cfg = this.model(topicModel(topic));
     const existing = docs.get(job.topic, job.path);
     if (
       job.kind === "review" &&
@@ -238,9 +252,59 @@ export class JobWorker {
     this.deps.events.changed("topics");
   }
 
-  private model(topic: Topic) {
-    const cfg = this.deps.config.get(topicModel(topic));
-    if (!cfg.model) throw new Error("主题所选模型已关闭或被删除，请换一个模型");
+  /** Records a story: the model orders steps through the topic's files using their explanations. */
+  private async story(job: Job, signal: AbortSignal) {
+    const { projects, files, topics, docs, stories } = this.deps;
+    const story = stories.get(job.path);
+    const topic = topics.get(job.topic);
+    const p = projects.get(job.project);
+    const manifest = files.list(job.project);
+    const explained = docs.listByTopic(job.topic);
+    const inputs = [];
+    const lineCounts = new Map<string, number>();
+    for (const f of topics.files(job.topic)) {
+      const d = explained.get(f.path);
+      if (!d) continue;
+      const s = await snapshot(p.root, manifest, f.path).catch(() => null);
+      if (!s) continue;
+      const lineCount = s.source.split("\n").length;
+      lineCounts.set(f.path, lineCount);
+      const e = JSON.parse(d.payload) as Explanation;
+      inputs.push({
+        path: f.path,
+        lineCount,
+        reason: f.reason,
+        summary: e.summary,
+        flow: e.flow,
+        evidence: e.evidence,
+        relations: e.relations,
+      });
+    }
+    if (!inputs.length) throw new Error("主题的说明还没有生成，无法录制故事");
+    const cfg = this.model(topicModel(story) ?? topicModel(topic));
+    const result = await completeJson(
+      cfg,
+      storyMessages(topic, story.question, inputs),
+      signal,
+    );
+    signal.throwIfAborted();
+    const recorded = validateStory(result, lineCounts);
+    // The story or its topic may have been deleted while the model was answering.
+    if (!stories.find(story.id)) return;
+    stories.update(story.id, {
+      state: "ready",
+      error: null,
+      title: recorded.title || story.title,
+      steps: JSON.stringify(recorded.steps),
+      model: cfg.model,
+    });
+    this.deps.events.changed("topics");
+  }
+
+  /** A model choice (null: the default model) resolved for a job; unusable ones fail it clearly. */
+  private model(choice: ActiveModel | null) {
+    const cfg = this.deps.config.get(choice);
+    if (!cfg.model) throw new Error("所选模型已关闭或被删除，请换一个模型");
     return cfg;
   }
 
@@ -270,7 +334,7 @@ export class JobWorker {
     });
     if (!files.length) throw new Error("No explanations to summarize yet");
     const result = await completeJson(
-      this.model(topic),
+      this.model(topicModel(topic)),
       overviewMessages(topic, files),
       signal,
     );

@@ -24,6 +24,9 @@ const migrations: string[] = [
    CREATE UNIQUE INDEX one_active ON jobs(topic,path,kind) WHERE state IN ('queued','running');`,
   // Each topic picks its own model; existing topics keep following the default model.
   `ALTER TABLE topics ADD COLUMN provider TEXT;`,
+  // Stories: recorded walks through a topic's code, one per question.
+  `CREATE TABLE stories(id TEXT PRIMARY KEY, topic TEXT, project TEXT, question TEXT, title TEXT, state TEXT, error TEXT, provider TEXT, model TEXT, steps TEXT, created TEXT);
+   CREATE INDEX stories_topic ON stories(topic, created);`,
 ];
 
 export function openDatabase(home: string): DatabaseSync {

@@ -34,6 +34,10 @@ config.json 保存供应商列表（名称、开关、API 格式、Base URL、�
 
 说明的 evidence 和 diagramLinks（flowchart 节点 → 行号）把说明和代码连起来，以“块”为单位：代码行悬停时，覆盖它的最窄那条依据整段高亮，右侧把这条依据滚到与代码块顶部对齐（代码滚动时保持对齐）；点击代码选中整块；在右侧点击依据，代码滚到让这块顶部与依据对齐。左右所有高亮用同一种样式。导读的 diagramLinks（节点 → 主题文件）让全景图节点可以打开文件。TopicFile.links 来自说明里指向同一主题文件的 relations，用于结构图。
 
+## 故事
+
+stories 表按主题保存故事：问题、标题、状态（generating / ready / failed）、模型和步骤 JSON（path、start、end、title、narration）。新建故事入队一个 story 任务（path 存故事 id），输入是主题文件的行数、说明、代码依据和关联（不含源码）；结果只保留指向主题文件、行号在文件内的步骤，单步最多 80 行，少于两步视为失败。导读输出 questions 作为推荐故事；`POST /api/topics/:id/story-ideas` 重新生成导读以获得推荐。删除主题会删除其故事。阅读器把故事和步骤放在 URL（`&story=…&step=3`），每一步对应打开文件并聚焦行号范围。
+
 ## 生命周期
 
 `add → realpath → 扫描 → 更新清单`（不调用模型）
@@ -71,6 +75,10 @@ config.json 保存供应商列表（名称、开关、API 格式、Base URL、�
 | POST /api/topics/:id/confirm       | `{files: [{path, reason}], instructions?, model?}` 确认并生成  |
 | POST /api/topics/:id/refresh       | 生成缺失或过期的说明                                           |
 | POST /api/topics/:id/run           | `{path, kind: generate 或 review}` 单文件重新生成/复查         |
+| GET/POST /api/topics/:id/stories   | 故事列表/新建故事 `{question, model?}`（入队录制任务）         |
+| POST /api/topics/:id/story-ideas   | 重新生成导读以获得推荐的故事问题                               |
+| POST /api/stories/:id/retry        | 重新录制故事 `{model?}`                                        |
+| DELETE /api/stories/:id            | 删除故事                                                       |
 | GET /api/topics/:id/document?path= | 文件在该主题下的说明与新鲜状态                                 |
 | GET /api/jobs                      | 最近 200 个任务（含主题名）                                    |
 | POST /api/jobs/:id/cancel          | 取消                                                           |

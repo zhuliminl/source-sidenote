@@ -5,6 +5,7 @@ import type {
   Job,
   Project,
   SourceFile,
+  Story,
   Topic,
   TopicFileRecord,
 } from "../../domain/model.js";
@@ -41,7 +42,7 @@ export class ProjectRepository {
           "DELETE FROM topic_files WHERE topic IN (SELECT id FROM topics WHERE project=?)",
         )
         .run(id);
-      for (const table of ["files", "docs", "jobs", "topics"])
+      for (const table of ["files", "docs", "jobs", "stories", "topics"])
         this.db.prepare(`DELETE FROM ${table} WHERE project=?`).run(id);
       this.db.prepare("DELETE FROM projects WHERE id=?").run(id);
     });
@@ -167,7 +168,7 @@ export class TopicRepository {
   /** Removes the topic with everything generated for it and cancels its pending work. */
   remove(id: string) {
     transaction(this.db, () => {
-      for (const table of ["topic_files", "docs"])
+      for (const table of ["topic_files", "docs", "stories"])
         this.db.prepare(`DELETE FROM ${table} WHERE topic=?`).run(id);
       this.db
         .prepare(
@@ -175,6 +176,68 @@ export class TopicRepository {
         )
         .run(now(), id);
       this.db.prepare("DELETE FROM topics WHERE id=?").run(id);
+    });
+  }
+}
+
+export class StoryRepository {
+  constructor(private db: DatabaseSync) {}
+  create(
+    s: Pick<Story, "topic" | "project" | "question" | "provider" | "model">,
+  ): Story {
+    const id = randomUUID();
+    this.db
+      .prepare(
+        "INSERT INTO stories(id,topic,project,question,title,state,error,provider,model,steps,created) VALUES(?,?,?,?,?,'generating',NULL,?,?,'[]',?)",
+      )
+      .run(
+        id,
+        s.topic,
+        s.project,
+        s.question,
+        s.question.slice(0, 40),
+        s.provider,
+        s.model,
+        now(),
+      );
+    return this.get(id);
+  }
+  get(id: string): Story {
+    const s = this.find(id);
+    if (!s) throw notFound("Story not found");
+    return s;
+  }
+  find(id: string): Story | undefined {
+    return this.db.prepare("SELECT * FROM stories WHERE id=?").get(id) as
+      Story | undefined;
+  }
+  list(topic: string): Story[] {
+    return this.db
+      .prepare("SELECT * FROM stories WHERE topic=? ORDER BY created")
+      .all(topic) as unknown as Story[];
+  }
+  update(
+    id: string,
+    fields: Partial<
+      Pick<Story, "title" | "state" | "error" | "provider" | "model" | "steps">
+    >,
+  ) {
+    const keys = Object.keys(fields);
+    if (!keys.length) return;
+    this.db
+      .prepare(
+        `UPDATE stories SET ${keys.map((k) => `${k}=?`).join(",")} WHERE id=?`,
+      )
+      .run(...keys.map((k) => (fields as any)[k] ?? null), id);
+  }
+  remove(id: string) {
+    transaction(this.db, () => {
+      this.db
+        .prepare(
+          "UPDATE jobs SET state='cancelled',updated=? WHERE kind='story' AND path=? AND state IN ('queued','running')",
+        )
+        .run(now(), id);
+      this.db.prepare("DELETE FROM stories WHERE id=?").run(id);
     });
   }
 }
