@@ -10,6 +10,7 @@ import { safeRead } from "../dist/infrastructure/source/files.js";
 import { dependencyContext } from "../dist/infrastructure/source/context.js";
 import { validateExplanation } from "../dist/domain/explanation.js";
 const explanation = {
+  brief: "示例函数",
   summary: "导出示例函数。",
   responsibilities: ["返回固定值"],
   flow: ["调用函数", "返回值"],
@@ -164,7 +165,13 @@ test("topics: plan, confirm, explain, overview, review, staleness, cancellation,
     assert.equal(topic.title, "问候链路");
     // Invented paths are dropped from the plan.
     assert.deepEqual(topic.entries, [
-      { path: "hello.ts", reason: "入口", status: "missing" },
+      {
+        path: "hello.ts",
+        reason: "入口",
+        status: "missing",
+        brief: "",
+        summary: "",
+      },
     ]);
     assert.equal(
       calls.explain,
@@ -173,7 +180,10 @@ test("topics: plan, confirm, explain, overview, review, staleness, cancellation,
     );
 
     const confirmed = await api(`topics/${topic.id}/confirm`, {
-      files: [...topic.entries, { path: "../etc/passwd", reason: "" }],
+      files: [
+        ...topic.entries.map(({ path, reason }) => ({ path, reason })),
+        { path: "../etc/passwd", reason: "" },
+      ],
       instructions: "用一句话",
     });
     assert.equal(confirmed.queued, 1);
@@ -183,6 +193,9 @@ test("topics: plan, confirm, explain, overview, review, staleness, cancellation,
     topic = await api(`topics/${topic.id}`);
     assert.equal(topic.fresh, 1);
     assert.equal(topic.model, "fixture");
+    // Entries carry the hover blurbs from each file's explanation.
+    assert.equal(topic.entries[0].brief, "示例函数");
+    assert.equal(topic.entries[0].summary, "导出示例函数。");
     assert.deepEqual(
       topic.overview.steps.map((s) => s.path),
       ["hello.ts"],

@@ -2,6 +2,11 @@ import { useDeferredValue, useEffect, useMemo, useState } from "react";
 import { ChevronRight, Search } from "lucide-react";
 import type { FileEntry, FileStatus, TopicView } from "@shared/api";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { StatusDot, fileStatusLabel } from "@/components/status-dot";
 import { useFiles } from "@/lib/queries";
 import { splitPath } from "@/lib/format";
@@ -38,6 +43,60 @@ function markOf(file: FileEntry, topic: Map<string, FileStatus> | null): Mark {
 }
 
 const highlighted = (m: Mark) => m.status !== "none";
+
+/** What hovering a topic file says about it: a short name and a sentence. */
+interface Hint {
+  brief: string;
+  detail: string;
+}
+
+/** Prefers the file's own explanation, then the walkthrough's station name and the planner's reason. */
+function hintsOf(topic: TopicView): Map<string, Hint> {
+  const labels = new Map(topic.overview?.steps.map((s) => [s.path, s.label]));
+  return new Map(
+    topic.entries.map((e) => [
+      e.path,
+      {
+        brief: e.brief || labels.get(e.path) || "",
+        detail: e.summary || e.reason,
+      },
+    ]),
+  );
+}
+
+/** Wraps a file row so hovering it explains the file; rows without a hint keep the native title. */
+function FileHint({
+  hint,
+  path,
+  status,
+  children,
+}: {
+  hint: Hint | undefined;
+  path: string;
+  status: string;
+  children: React.ReactElement;
+}) {
+  if (!hint || (!hint.brief && !hint.detail)) return children;
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>{children}</TooltipTrigger>
+      <TooltipContent
+        side="right"
+        align="start"
+        sideOffset={8}
+        className="max-w-72 space-y-1 px-3 py-2 text-left text-pretty"
+      >
+        {hint.brief && (
+          <p className="text-[13px] leading-5 font-medium">{hint.brief}</p>
+        )}
+        {hint.detail && <p className="leading-5 opacity-80">{hint.detail}</p>}
+        <p className="truncate pt-0.5 font-mono text-[10.5px] opacity-55">
+          {splitPath(path).name} · {status}
+        </p>
+      </TooltipContent>
+    </Tooltip>
+  );
+}
 
 /** Builds a sorted folder tree; single-child folder chains are compacted like VS Code. */
 function buildTree(
@@ -139,6 +198,10 @@ export function FileTree({
   const mark = useMemo(
     () => (f: FileEntry) => markOf(f, topicStatus),
     [topicStatus],
+  );
+  const hints = useMemo(
+    () => (topicStatus && topic ? hintsOf(topic) : new Map<string, Hint>()),
+    [topic, topicStatus],
   );
   const showOrder = Boolean(topicStatus) && view === "order";
   const marked = files.data?.filter((f) => highlighted(mark(f))).length ?? 0;
@@ -284,6 +347,7 @@ export function FileTree({
                 key={f.path}
                 file={f}
                 mark={mark(f)}
+                hint={hints.get(f.path)}
                 selected={selected === f.path}
                 onSelect={onSelect}
               />
@@ -298,6 +362,7 @@ export function FileTree({
               index={i}
               path={e.path}
               status={e.status}
+              hint={hints.get(e.path)}
               selected={selected === e.path}
               onSelect={onSelect}
             />
@@ -309,6 +374,7 @@ export function FileTree({
             expanded={expanded}
             selected={selected}
             mark={mark}
+            hints={hints}
             dimUnmarked={Boolean(topicStatus)}
             onToggle={toggle}
             onSelect={onSelect}
@@ -339,43 +405,47 @@ function OrderItem({
   index,
   path,
   status,
+  hint,
   selected,
   onSelect,
 }: {
   index: number;
   path: string;
   status: FileStatus;
+  hint: Hint | undefined;
   selected: boolean;
   onSelect: (path: string) => void;
 }) {
   const { dir, name } = splitPath(path);
   return (
-    <button
-      type="button"
-      onClick={() => onSelect(path)}
-      title={`${path} · ${fileStatusLabel[status]}`}
-      className={cn(
-        "flex w-full items-start gap-2 rounded-md px-2 py-1.5 text-left transition-colors hover:bg-accent/70",
-        selected && "bg-accent hover:bg-accent",
-      )}
-    >
-      <span className="mt-px w-4 shrink-0 text-right text-[11px] text-subtle-foreground tabular-nums">
-        {index + 1}
-      </span>
-      <span className="min-w-0 flex-1">
-        <span className="flex items-center gap-2">
-          <span className={cn("truncate", selected && "font-medium")}>
-            {name}
-          </span>
-          <StatusDot status={status} className="ml-auto" />
-        </span>
-        {dir && (
-          <span className="block truncate font-mono text-[10.5px] text-subtle-foreground">
-            {dir}
-          </span>
+    <FileHint hint={hint} path={path} status={fileStatusLabel[status]}>
+      <button
+        type="button"
+        onClick={() => onSelect(path)}
+        title={hint ? undefined : `${path} · ${fileStatusLabel[status]}`}
+        className={cn(
+          "flex w-full items-start gap-2 rounded-md px-2 py-1.5 text-left transition-colors hover:bg-accent/70",
+          selected && "bg-accent hover:bg-accent",
         )}
-      </span>
-    </button>
+      >
+        <span className="mt-px w-4 shrink-0 text-right text-[11px] text-subtle-foreground tabular-nums">
+          {index + 1}
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="flex items-center gap-2">
+            <span className={cn("truncate", selected && "font-medium")}>
+              {name}
+            </span>
+            <StatusDot status={status} className="ml-auto" />
+          </span>
+          {dir && (
+            <span className="block truncate font-mono text-[10.5px] text-subtle-foreground">
+              {dir}
+            </span>
+          )}
+        </span>
+      </button>
+    </FileHint>
   );
 }
 
@@ -389,6 +459,7 @@ function Nodes({
   expanded: Set<string>;
   selected: string | null;
   mark: (f: FileEntry) => Mark;
+  hints: Map<string, Hint>;
   dimUnmarked: boolean;
   onToggle: (path: string) => void;
   onSelect: (path: string) => void;
@@ -399,29 +470,36 @@ function Nodes({
       {nodes.map((node) => {
         if (node.kind === "file") {
           const m = props.mark(node.file);
+          const hint = props.hints.get(node.path);
           return (
-            <button
+            <FileHint
               key={node.path}
-              type="button"
-              role="treeitem"
-              aria-selected={props.selected === node.path}
-              onClick={() => props.onSelect(node.path)}
-              title={`${node.path} · ${m.label}`}
-              style={indent}
-              className={cn(
-                "flex h-7 w-full items-center gap-2 rounded-md pr-2 text-left transition-colors hover:bg-accent/70",
-                props.dimUnmarked &&
-                  !highlighted(m) &&
-                  "text-subtle-foreground",
-                props.selected === node.path &&
-                  "bg-accent font-medium text-foreground hover:bg-accent",
-              )}
+              hint={hint}
+              path={node.path}
+              status={m.label}
             >
-              <span className="flex w-3.5 shrink-0 justify-center">
-                <MarkDot mark={m} />
-              </span>
-              <span className="truncate">{node.name}</span>
-            </button>
+              <button
+                type="button"
+                role="treeitem"
+                aria-selected={props.selected === node.path}
+                onClick={() => props.onSelect(node.path)}
+                title={hint ? undefined : `${node.path} · ${m.label}`}
+                style={indent}
+                className={cn(
+                  "flex h-7 w-full items-center gap-2 rounded-md pr-2 text-left transition-colors hover:bg-accent/70",
+                  props.dimUnmarked &&
+                    !highlighted(m) &&
+                    "text-subtle-foreground",
+                  props.selected === node.path &&
+                    "bg-accent font-medium text-foreground hover:bg-accent",
+                )}
+              >
+                <span className="flex w-3.5 shrink-0 justify-center">
+                  <MarkDot mark={m} />
+                </span>
+                <span className="truncate">{node.name}</span>
+              </button>
+            </FileHint>
           );
         }
         const open = props.expanded.has(node.path);
@@ -461,30 +539,34 @@ function Nodes({
 function SearchResult({
   file,
   mark,
+  hint,
   selected,
   onSelect,
 }: {
   file: FileEntry;
   mark: Mark;
+  hint: Hint | undefined;
   selected: boolean;
   onSelect: (path: string) => void;
 }) {
   const { dir, name } = splitPath(file.path);
   return (
-    <button
-      type="button"
-      onClick={() => onSelect(file.path)}
-      className={cn(
-        "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left transition-colors hover:bg-accent/70",
-        selected && "bg-accent hover:bg-accent",
-      )}
-    >
-      <MarkDot mark={mark} />
-      <span className="shrink-0">{name}</span>
-      <span className="min-w-0 truncate font-mono text-[11px] text-subtle-foreground">
-        {dir}
-      </span>
-    </button>
+    <FileHint hint={hint} path={file.path} status={mark.label}>
+      <button
+        type="button"
+        onClick={() => onSelect(file.path)}
+        className={cn(
+          "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left transition-colors hover:bg-accent/70",
+          selected && "bg-accent hover:bg-accent",
+        )}
+      >
+        <MarkDot mark={mark} />
+        <span className="shrink-0">{name}</span>
+        <span className="min-w-0 truncate font-mono text-[11px] text-subtle-foreground">
+          {dir}
+        </span>
+      </button>
+    </FileHint>
   );
 }
 

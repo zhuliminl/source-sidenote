@@ -1,5 +1,6 @@
 import type {
   DocumentView,
+  Explanation,
   FileStatus,
   JobKind,
   PromptView,
@@ -204,7 +205,14 @@ export class TopicService {
               ? "fresh"
               : "stale";
         }
-        return { path: f.path, reason: f.reason, status };
+        const e = d ? (JSON.parse(d.payload) as Partial<Explanation>) : {};
+        return {
+          path: f.path,
+          reason: f.reason,
+          status,
+          brief: e.brief ?? "",
+          summary: e.summary ?? "",
+        };
       }),
     );
   }

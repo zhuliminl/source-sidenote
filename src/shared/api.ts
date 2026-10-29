@@ -35,6 +35,8 @@ export interface FileEntry {
 }
 
 export interface Explanation {
+  /** A few words naming what the file is for, shown when hovering it; empty in older explanations. */
+  brief: string;
   summary: string;
   responsibilities: string[];
   flow: string[];
@@ -72,6 +74,9 @@ export interface TopicFile {
   /** Why the planner (or the user) included this file. */
   reason: string;
   status: FileStatus;
+  /** Hover blurbs from the file's explanation; empty until it is generated. */
+  brief: string;
+  summary: string;
 }
 
 export interface TopicSummary {

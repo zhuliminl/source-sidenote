@@ -52,6 +52,7 @@ export function validateExplanation(
   )
     throw new Error("Invalid evidence ranges");
   return {
+    brief: typeof v.brief === "string" ? v.brief.trim().slice(0, 24) : "",
     summary: v.summary,
     responsibilities: v.responsibilities,
     flow: v.flow,
