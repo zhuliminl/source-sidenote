@@ -207,6 +207,11 @@ export function TopicMinimap({
     storage.get<Mode>("sidenote-map-mode", "line"),
   );
   const [expanded, setExpanded] = useState(false);
+  // The maximized view opens in the mode the small map is in, and can switch on its own.
+  const [bigMode, setBigMode] = useState<Mode>(mode);
+  useEffect(() => {
+    if (expanded) setBigMode(mode);
+  }, [expanded, mode]);
   const list = useRef<HTMLOListElement>(null);
   // Default: the window's bottom-left corner, just above the sidebar's settings row.
   const float = useDraggable("sidenote-map-spot", { left: 12, bottom: 60 });
@@ -290,33 +295,7 @@ export function TopicMinimap({
             <span className="text-xs text-subtle-foreground tabular-nums">
               {position}
             </span>
-            <div
-              role="tablist"
-              aria-label="地图样式"
-              className="mx-auto flex rounded-full bg-muted p-0.5 text-[11px]"
-            >
-              {(
-                [
-                  ["line", "线路", Rows3],
-                  ["graph", "结构", Share2],
-                ] as const
-              ).map(([value, label, Icon]) => (
-                <button
-                  key={value}
-                  type="button"
-                  role="tab"
-                  aria-selected={mode === value}
-                  onClick={() => switchMode(value)}
-                  className={cn(
-                    "flex items-center gap-1 rounded-full px-2 py-0.5 whitespace-nowrap text-muted-foreground transition-colors",
-                    mode === value && "bg-background text-foreground shadow-sm",
-                  )}
-                >
-                  <Icon className="size-3" />
-                  {label}
-                </button>
-              ))}
-            </div>
+            <ModeTabs value={mode} onChange={switchMode} className="mx-auto" />
             <Button
               variant="ghost"
               size="icon-xs"
@@ -342,8 +321,8 @@ export function TopicMinimap({
             <Button
               variant="ghost"
               size="icon-xs"
-              aria-label="展开链路全景"
-              title="展开链路全景"
+              aria-label="放大地图"
+              title="放大地图"
               onClick={() => setExpanded(true)}
               className="text-muted-foreground"
             >
@@ -382,6 +361,7 @@ export function TopicMinimap({
           ) : (
             <div className="min-h-0 flex-1 p-2">
               <TopicGraph
+                topicId={topic.id}
                 stations={stations}
                 links={links}
                 current={current}
@@ -394,18 +374,7 @@ export function TopicMinimap({
             <span>
               已看过 {seen}/{stations.length} 站
             </span>
-            {mode === "graph" && (
-              <span className="ml-auto flex items-center gap-3">
-                <span className="flex items-center gap-1">
-                  <span className="w-4 border-t border-muted-foreground" />
-                  相互关联
-                </span>
-                <span className="flex items-center gap-1">
-                  <span className="w-4 border-t border-dashed border-subtle-foreground" />
-                  阅读顺序
-                </span>
-              </span>
-            )}
+            {mode === "graph" && <GraphLegend className="ml-auto" />}
           </footer>
         </section>
       ) : (
@@ -431,55 +400,91 @@ export function TopicMinimap({
       )}
 
       <Dialog open={expanded} onOpenChange={setExpanded}>
-        <DialogContent className="max-h-[92vh] w-[min(1000px,94vw)] max-w-none overflow-y-auto sm:max-w-none">
-          <DialogTitle>{topic.title}</DialogTitle>
-          {topic.overview?.summary && (
-            <DialogDescription className="leading-6">
-              {topic.overview.summary}
-            </DialogDescription>
+        <DialogContent
+          className={cn(
+            "flex max-h-[92vh] max-w-none flex-col sm:max-w-none",
+            bigMode === "graph"
+              ? "h-[92vh] w-[min(1400px,96vw)]"
+              : "w-[min(1000px,94vw)] overflow-y-auto",
           )}
-          {topic.overview?.diagram && (
-            <OverviewDiagram
-              topic={topic}
-              current={current}
-              onSelect={(path) => {
-                onSelect(path);
-                setExpanded(false);
-              }}
-            />
-          )}
-          <ol className="mt-1 grid gap-1 sm:grid-cols-2">
-            {stations.map((s, i) => (
-              <li key={`${s.path}-${i}`}>
-                <button
-                  type="button"
-                  onClick={() => {
-                    onSelect(s.path);
+        >
+          <div className="flex items-center gap-3 pr-8">
+            <DialogTitle className="min-w-0 truncate">
+              {topic.title}
+            </DialogTitle>
+            <ModeTabs value={bigMode} onChange={setBigMode} />
+          </div>
+          {bigMode === "graph" ? (
+            <>
+              <DialogDescription className="sr-only">
+                主题结构图，可拖动站点
+              </DialogDescription>
+              <div className="min-h-0 flex-1 rounded-xl border bg-card p-3">
+                <TopicGraph
+                  topicId={topic.id}
+                  stations={stations}
+                  links={links}
+                  current={current}
+                  visited={visited}
+                  onSelect={(path) => {
+                    onSelect(path);
                     setExpanded(false);
                   }}
-                  className={cn(
-                    "flex h-full w-full gap-3 rounded-lg px-2.5 py-2 text-left transition-colors hover:bg-muted",
-                    i === index && "bg-muted",
-                  )}
-                >
-                  <span className="mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full bg-muted text-[11px] text-muted-foreground tabular-nums">
-                    {i + 1}
-                  </span>
-                  <span className="min-w-0 text-sm leading-6">
-                    <span className="block font-medium">{s.label}</span>
-                    <span className="block truncate font-mono text-[11px] text-subtle-foreground">
-                      {s.path}
-                    </span>
-                    {s.description && (
-                      <span className="text-xs leading-5 text-muted-foreground">
-                        <InlineMarkdown>{s.description}</InlineMarkdown>
+                />
+              </div>
+              <GraphLegend className="justify-end" />
+            </>
+          ) : (
+            <>
+              {topic.overview?.summary && (
+                <DialogDescription className="leading-6">
+                  {topic.overview.summary}
+                </DialogDescription>
+              )}
+              {topic.overview?.diagram && (
+                <OverviewDiagram
+                  topic={topic}
+                  current={current}
+                  onSelect={(path) => {
+                    onSelect(path);
+                    setExpanded(false);
+                  }}
+                />
+              )}
+              <ol className="mt-1 grid gap-1 sm:grid-cols-2">
+                {stations.map((s, i) => (
+                  <li key={`${s.path}-${i}`}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onSelect(s.path);
+                        setExpanded(false);
+                      }}
+                      className={cn(
+                        "flex h-full w-full gap-3 rounded-lg px-2.5 py-2 text-left transition-colors hover:bg-muted",
+                        i === index && "bg-muted",
+                      )}
+                    >
+                      <span className="mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full bg-muted text-[11px] text-muted-foreground tabular-nums">
+                        {i + 1}
                       </span>
-                    )}
-                  </span>
-                </button>
-              </li>
-            ))}
-          </ol>
+                      <span className="min-w-0 text-sm leading-6">
+                        <span className="block font-medium">{s.label}</span>
+                        <span className="block truncate font-mono text-[11px] text-subtle-foreground">
+                          {s.path}
+                        </span>
+                        {s.description && (
+                          <span className="text-xs leading-5 text-muted-foreground">
+                            <InlineMarkdown>{s.description}</InlineMarkdown>
+                          </span>
+                        )}
+                      </span>
+                    </button>
+                  </li>
+                ))}
+              </ol>
+            </>
+          )}
         </DialogContent>
       </Dialog>
     </>
@@ -590,5 +595,69 @@ function Station({
         </button>
       </FileHint>
     </li>
+  );
+}
+
+function ModeTabs({
+  value,
+  onChange,
+  className,
+}: {
+  value: Mode;
+  onChange: (mode: Mode) => void;
+  className?: string;
+}) {
+  return (
+    <div
+      role="tablist"
+      aria-label="地图样式"
+      className={cn(
+        "flex shrink-0 rounded-full bg-muted p-0.5 text-[11px]",
+        className,
+      )}
+    >
+      {(
+        [
+          ["line", "线路", Rows3],
+          ["graph", "结构", Share2],
+        ] as const
+      ).map(([v, label, Icon]) => (
+        <button
+          key={v}
+          type="button"
+          role="tab"
+          aria-selected={value === v}
+          onClick={() => onChange(v)}
+          className={cn(
+            "flex items-center gap-1 rounded-full px-2 py-0.5 whitespace-nowrap text-muted-foreground transition-colors",
+            value === v && "bg-background text-foreground shadow-sm",
+          )}
+        >
+          <Icon className="size-3" />
+          {label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function GraphLegend({ className }: { className?: string }) {
+  return (
+    <span
+      className={cn(
+        "flex items-center gap-3 text-[11px] text-subtle-foreground",
+        className,
+      )}
+    >
+      <span className="flex items-center gap-1">
+        <span className="w-4 border-t border-muted-foreground" />
+        相互关联
+      </span>
+      <span className="flex items-center gap-1">
+        <span className="w-4 border-t border-dashed border-subtle-foreground" />
+        阅读顺序
+      </span>
+      <span>拖动站点可调整位置</span>
+    </span>
   );
 }

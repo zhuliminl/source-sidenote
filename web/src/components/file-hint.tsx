@@ -19,16 +19,19 @@ export function FileHint({
   status,
   children,
   side = "right",
+  disabled = false,
 }: {
   hint: Hint | undefined;
   path: string;
   status: string;
   children: ReactElement;
   side?: "right" | "top" | "left" | "bottom";
+  /** Keeps the card closed (e.g. while the row is being dragged) without remounting it. */
+  disabled?: boolean;
 }) {
   if (!hint || (!hint.brief && !hint.detail)) return children;
   return (
-    <Tooltip>
+    <Tooltip open={disabled ? false : undefined}>
       <TooltipTrigger asChild>{children}</TooltipTrigger>
       <TooltipContent
         side={side}

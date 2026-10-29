@@ -1,4 +1,5 @@
-import { useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { LayoutGrid } from "lucide-react";
 import type { TopicStep } from "@shared/api";
 import { FileHint } from "@/components/file-hint";
 import { cn } from "@/lib/utils";
@@ -96,11 +97,36 @@ function exit(w: number, dx: number, dy: number) {
   return { x: dx * t, y: dy * t };
 }
 
+type Point = { x: number; y: number };
+type Placed = Record<string, Point>;
+
+/** Where the reader dragged each station, per topic; shared by every graph of that topic. */
+const placedKey = (topic: string) => `sidenote-graph-pos:${topic}`;
+const PLACED_EVENT = "sidenote-graph-pos";
+function readPlaced(topic: string): Placed {
+  try {
+    return JSON.parse(localStorage.getItem(placedKey(topic)) ?? "{}") as Placed;
+  } catch {
+    return {};
+  }
+}
+function writePlaced(topic: string, placed: Placed) {
+  try {
+    if (Object.keys(placed).length)
+      localStorage.setItem(placedKey(topic), JSON.stringify(placed));
+    else localStorage.removeItem(placedKey(topic));
+  } catch {}
+  // Keep the small map and the maximized one in step.
+  dispatchEvent(new CustomEvent(PLACED_EVENT, { detail: topic }));
+}
+
 /**
  * The topic as a spread-out graph: stations are files, solid lines are relations named in the
  * explanations, dashed arrows are the reading order. Hovering a station lights up its neighbours.
+ * Stations can be dragged; where the reader puts them is remembered, to build a mental map.
  */
 export function TopicGraph({
+  topicId,
   stations,
   links,
   current,
@@ -108,6 +134,7 @@ export function TopicGraph({
   onSelect,
   className,
 }: {
+  topicId: string;
   stations: TopicStep[];
   /** path → related topic files */
   links: Map<string, string[]>;
@@ -116,8 +143,31 @@ export function TopicGraph({
   onSelect: (path: string) => void;
   className?: string;
 }) {
+  const arrow = `arrow${useId().replace(/[^a-zA-Z0-9]/g, "")}`;
+  const svg = useRef<SVGSVGElement>(null);
   const [hover, setHover] = useState<number | null>(null);
-  const { nodes, edges, box } = useMemo(() => {
+  const [placed, setPlaced] = useState<Placed>(() => readPlaced(topicId));
+  const [dragging, setDragging] = useState<{ i: number; at: Point } | null>(
+    null,
+  );
+  const drag = useRef<{
+    i: number;
+    grab: Point;
+    origin: Point;
+    moved: boolean;
+  } | null>(null);
+  const frozen = useRef<string | null>(null);
+
+  useEffect(() => {
+    setPlaced(readPlaced(topicId));
+    const sync = (e: Event) =>
+      (e as CustomEvent<string>).detail === topicId &&
+      setPlaced(readPlaced(topicId));
+    addEventListener(PLACED_EVENT, sync);
+    return () => removeEventListener(PLACED_EVENT, sync);
+  }, [topicId]);
+
+  const { auto, edges } = useMemo(() => {
     const index = new Map(stations.map((s, i) => [s.path, i]));
     const edges: Edge[] = [];
     const seen = new Set<string>();
@@ -133,21 +183,78 @@ export function TopicGraph({
         edges.push({ a: i, b: j, kind: "link" });
       }
     });
-    const nodes = layout(
-      stations.map((s) => s.label),
-      edges,
-    );
-    const pad = 16;
-    const xs = nodes.flatMap((p) => [p.x - p.w / 2, p.x + p.w / 2]);
-    const ys = nodes.flatMap((p) => [p.y - NODE_H / 2, p.y + NODE_H / 2]);
-    const minX = Math.min(...xs) - pad;
-    const minY = Math.min(...ys) - pad;
     return {
-      nodes,
+      auto: layout(
+        stations.map((s) => s.label),
+        edges,
+      ),
       edges,
-      box: `${minX} ${minY} ${Math.max(...xs) + pad - minX} ${Math.max(...ys) + pad - minY}`,
     };
   }, [stations, links]);
+
+  const nodes = auto.map((p, i) => {
+    if (dragging?.i === i) return { ...p, ...dragging.at };
+    const saved = placed[stations[i].path];
+    return saved ? { ...p, ...saved } : p;
+  });
+
+  // Fit the view to the stations, but hold it still while one is being dragged.
+  const pad = 16;
+  const xs = nodes.flatMap((p) => [p.x - p.w / 2, p.x + p.w / 2]);
+  const ys = nodes.flatMap((p) => [p.y - NODE_H / 2, p.y + NODE_H / 2]);
+  const minX = Math.min(...xs) - pad;
+  const minY = Math.min(...ys) - pad;
+  const fitted = `${minX} ${minY} ${Math.max(...xs) + pad - minX} ${Math.max(...ys) + pad - minY}`;
+  const box = dragging && frozen.current ? frozen.current : fitted;
+
+  const toSvg = (e: React.PointerEvent): Point => {
+    const m = svg.current?.getScreenCTM();
+    if (!m) return { x: 0, y: 0 };
+    const p = new DOMPoint(e.clientX, e.clientY).matrixTransform(m.inverse());
+    return { x: p.x, y: p.y };
+  };
+  const handlers = (i: number) => ({
+    onPointerDown(e: React.PointerEvent<SVGGElement>) {
+      if (e.button !== 0) return;
+      e.currentTarget.setPointerCapture(e.pointerId);
+      drag.current = {
+        i,
+        grab: toSvg(e),
+        origin: { x: nodes[i].x, y: nodes[i].y },
+        moved: false,
+      };
+    },
+    onPointerMove(e: React.PointerEvent<SVGGElement>) {
+      const d = drag.current;
+      if (!d) return;
+      const p = toSvg(e);
+      const dx = p.x - d.grab.x;
+      const dy = p.y - d.grab.y;
+      if (!d.moved && Math.hypot(dx, dy) < 3) return;
+      if (!d.moved) frozen.current = fitted;
+      d.moved = true;
+      setDragging({ i, at: { x: d.origin.x + dx, y: d.origin.y + dy } });
+    },
+    onPointerUp() {
+      const d = drag.current;
+      drag.current = null;
+      if (!d) return;
+      if (!d.moved) return onSelect(stations[i].path);
+      if (dragging) {
+        const next = {
+          ...placed,
+          [stations[i].path]: {
+            x: Math.round(dragging.at.x),
+            y: Math.round(dragging.at.y),
+          },
+        };
+        setPlaced(next);
+        writePlaced(topicId, next);
+      }
+      setDragging(null);
+      frozen.current = null;
+    },
+  });
 
   const here = stations.findIndex((s) => s.path === current);
   const focus = hover ?? (here >= 0 ? here : null);
@@ -159,74 +266,83 @@ export function TopicGraph({
 
   if (!stations.length) return null;
   return (
-    <svg
-      viewBox={box}
-      className={cn("h-full w-full select-none", className)}
-      role="img"
-      aria-label="主题结构图"
-    >
-      <defs>
-        <marker
-          id="topic-graph-arrow"
-          viewBox="0 0 8 8"
-          refX="7"
-          refY="4"
-          markerWidth="6"
-          markerHeight="6"
-          orient="auto"
+    <div className={cn("group/graph relative h-full w-full", className)}>
+      {Object.keys(placed).length > 0 && (
+        <button
+          type="button"
+          onClick={() => {
+            setPlaced({});
+            writePlaced(topicId, {});
+          }}
+          title="清除拖动过的位置，恢复自动排布"
+          className="absolute top-1 right-1 z-10 flex items-center gap-1 rounded-full border bg-popover px-2 py-0.5 text-[11px] text-muted-foreground opacity-0 shadow-sm transition-opacity group-hover/graph:opacity-100 hover:text-foreground focus-visible:opacity-100"
         >
-          <path d="M0,0 L8,4 L0,8 z" className="fill-subtle-foreground" />
-        </marker>
-      </defs>
-      {edges.map((e, i) => {
-        const a = nodes[e.a];
-        const b = nodes[e.b];
-        const dx = b.x - a.x;
-        const dy = b.y - a.y;
-        const s = exit(a.w, dx, dy);
-        const t = exit(b.w, -dx, -dy);
-        const lit = focus !== null && (e.a === focus || e.b === focus);
-        return (
-          <line
-            key={i}
-            x1={a.x + s.x}
-            y1={a.y + s.y}
-            x2={b.x + t.x}
-            y2={b.y + t.y}
-            strokeDasharray={e.kind === "order" ? "3 3" : undefined}
-            markerEnd={
-              e.kind === "order" ? "url(#topic-graph-arrow)" : undefined
-            }
-            className={cn(
-              "transition-opacity",
-              e.kind === "link"
-                ? "stroke-muted-foreground"
-                : "stroke-subtle-foreground",
-              focus !== null && !lit && "opacity-25",
-            )}
-            strokeWidth={lit ? 1.6 : 1}
-          />
-        );
-      })}
-      {stations.map((s, i) => {
-        const p = nodes[i];
-        const isHere = i === here;
-        const seen = visited.includes(s.path);
-        const dim = focus !== null && i !== focus && !near.has(i);
-        return (
-          <FileHint
-            key={`${s.path}-${i}`}
-            hint={{ brief: s.label, detail: s.description }}
-            path={s.path}
-            status={`第 ${i + 1} 站${isHere ? " · 当前" : seen ? " · 已看过" : ""}`}
+          <LayoutGrid className="size-3" />
+          重新排布
+        </button>
+      )}
+      <svg
+        ref={svg}
+        viewBox={box}
+        className="h-full w-full touch-none select-none"
+        role="img"
+        aria-label="主题结构图，可拖动站点"
+      >
+        <defs>
+          <marker
+            id={arrow}
+            viewBox="0 0 8 8"
+            refX="7"
+            refY="4"
+            markerWidth="6"
+            markerHeight="6"
+            orient="auto"
           >
+            <path d="M0,0 L8,4 L0,8 z" className="fill-subtle-foreground" />
+          </marker>
+        </defs>
+        {edges.map((e, i) => {
+          const a = nodes[e.a];
+          const b = nodes[e.b];
+          const dx = b.x - a.x;
+          const dy = b.y - a.y;
+          const s = exit(a.w, dx, dy);
+          const t = exit(b.w, -dx, -dy);
+          const lit = focus !== null && (e.a === focus || e.b === focus);
+          return (
+            <line
+              key={i}
+              x1={a.x + s.x}
+              y1={a.y + s.y}
+              x2={b.x + t.x}
+              y2={b.y + t.y}
+              strokeDasharray={e.kind === "order" ? "3 3" : undefined}
+              markerEnd={e.kind === "order" ? `url(#${arrow})` : undefined}
+              className={cn(
+                !dragging && "transition-opacity",
+                e.kind === "link"
+                  ? "stroke-muted-foreground"
+                  : "stroke-subtle-foreground",
+                focus !== null && !lit && "opacity-25",
+              )}
+              strokeWidth={lit ? 1.6 : 1}
+            />
+          );
+        })}
+        {stations.map((s, i) => {
+          const p = nodes[i];
+          const isHere = i === here;
+          const seen = visited.includes(s.path);
+          const dim = focus !== null && i !== focus && !near.has(i);
+          const node = (
             <g
               transform={`translate(${p.x - p.w / 2} ${p.y - NODE_H / 2})`}
-              onClick={() => onSelect(s.path)}
+              {...handlers(i)}
               onMouseEnter={() => setHover(i)}
               onMouseLeave={() => setHover(null)}
               className={cn(
                 "cursor-pointer transition-opacity",
+                dragging?.i === i && "cursor-grabbing",
                 dim && "opacity-35",
               )}
             >
@@ -256,9 +372,21 @@ export function TopicGraph({
                 {short(s.label)}
               </text>
             </g>
-          </FileHint>
-        );
-      })}
-    </svg>
+          );
+          // No hover card while dragging: it would trail behind the station.
+          return (
+            <FileHint
+              key={`${s.path}-${i}`}
+              disabled={Boolean(dragging)}
+              hint={{ brief: s.label, detail: s.description }}
+              path={s.path}
+              status={`第 ${i + 1} 站${isHere ? " · 当前" : seen ? " · 已看过" : ""} · 可拖动`}
+            >
+              {node}
+            </FileHint>
+          );
+        })}
+      </svg>
+    </div>
   );
 }
