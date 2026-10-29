@@ -204,7 +204,7 @@ function ActiveBanner({ config }: { config: ConfigView }) {
           <AlertTriangle className="size-4 shrink-0" />
           {config.active
             ? "当前选择的模型已关闭或被移除，生成任务已暂停。请重新选择一个模型。"
-            : "还没有选择模型：在模型列表里点“使用”。"}
+            : "还没有选择模型：在下面的模型列表里点某个模型右侧的“使用”。"}
         </>
       )}
     </div>
@@ -679,7 +679,7 @@ function ModelRow({
             disabled={!usable || save.isPending}
             title={usable ? "用这个模型生成说明" : "先启用供应商和模型"}
             onClick={use}
-            className="mr-1 opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100 max-md:opacity-100"
+            className="mr-1"
           >
             使用
           </Button>
