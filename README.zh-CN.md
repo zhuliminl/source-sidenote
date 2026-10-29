@@ -11,7 +11,7 @@
 <p align="center">
   <a href="https://github.com/zhuliminl/source-sidenote/actions/workflows/ci.yml"><img src="https://github.com/zhuliminl/source-sidenote/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT License"></a>
-  <img src="https://img.shields.io/badge/node-26.x-339933?logo=node.js&logoColor=white" alt="Node 26">
+  <img src="https://img.shields.io/badge/node-%E2%89%A522.13-339933?logo=node.js&logoColor=white" alt="Node 22.13+">
   <img src="https://img.shields.io/badge/runs-locally-0d0d0d" alt="本机运行">
 </p>
 
@@ -93,7 +93,7 @@ flowchart LR
 
 ## 快速开始
 
-**需要：** Node.js **26.12+**（内置的 `node:sqlite` 仍是候选版本，因此锁定主版本），以及一个可用的对话模型。
+**需要：** Node.js **22.13 或更新**（用到内置的 `node:sqlite`，推荐 Node 24 长期支持版），以及一个可用的对话模型。
 
 ```sh
 git clone https://github.com/zhuliminl/source-sidenote.git

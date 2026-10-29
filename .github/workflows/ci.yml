@@ -3,14 +3,22 @@ on: [push, pull_request]
 jobs:
   test:
     strategy:
+      fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
+        node: ["24"]
+        # The oldest supported Node and the newest one, on Linux.
+        include:
+          - os: ubuntu-latest
+            node: "22.13"
+          - os: ubuntu-latest
+            node: "26"
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: "26.12.1"
+          node-version: ${{ matrix.node }}
           cache: npm
       - run: npm ci
       - run: npm test

@@ -11,7 +11,7 @@
 <p align="center">
   <a href="https://github.com/zhuliminl/source-sidenote/actions/workflows/ci.yml"><img src="https://github.com/zhuliminl/source-sidenote/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT License"></a>
-  <img src="https://img.shields.io/badge/node-26.x-339933?logo=node.js&logoColor=white" alt="Node 26">
+  <img src="https://img.shields.io/badge/node-%E2%89%A522.13-339933?logo=node.js&logoColor=white" alt="Node 22.13+">
   <img src="https://img.shields.io/badge/runs-locally-0d0d0d" alt="Runs locally">
 </p>
 
@@ -93,7 +93,7 @@ A single Node service owns the model calls, the job queue and the SQLite store. 
 
 ## Quick start
 
-**Requirements:** Node.js **26.12+** (the built-in `node:sqlite` is still a release candidate, so the major version is pinned) and access to a chat model.
+**Requirements:** Node.js **22.13 or newer** (it uses the built-in `node:sqlite`; Node 24 LTS is recommended) and access to a chat model.
 
 ```sh
 git clone https://github.com/zhuliminl/source-sidenote.git
