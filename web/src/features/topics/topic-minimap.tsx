@@ -245,6 +245,30 @@ export function TopicMinimap({
     setOpen(next);
     storage.set("sidenote-map-open", next);
   };
+  // M shows/hides the map, Shift+M opens/closes the maximized view (and M also closes it),
+  // so switching between the map and the code is one key. Ignored while typing.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.code !== "KeyM" || e.metaKey || e.ctrlKey || e.altKey) return;
+      if (e.repeat || e.isComposing) return;
+      const target = e.target as HTMLElement | null;
+      if (
+        target?.closest(
+          "input, textarea, select, [contenteditable]:not([contenteditable=false])",
+        )
+      )
+        return;
+      e.preventDefault();
+      if (e.shiftKey) setExpanded((x) => !x);
+      else if (expanded) setExpanded(false);
+      else {
+        setOpen(!open);
+        storage.set("sidenote-map-open", !open);
+      }
+    };
+    addEventListener("keydown", onKey);
+    return () => removeEventListener("keydown", onKey);
+  }, [open, expanded]);
   const switchMode = (next: Mode) => {
     setMode(next);
     storage.set("sidenote-map-mode", next);
@@ -322,7 +346,7 @@ export function TopicMinimap({
               variant="ghost"
               size="icon-xs"
               aria-label="放大地图"
-              title="放大地图"
+              title="放大地图（Shift+M）"
               onClick={() => setExpanded(true)}
               className="text-muted-foreground"
             >
@@ -332,7 +356,7 @@ export function TopicMinimap({
               variant="ghost"
               size="icon-xs"
               aria-label="收起地图"
-              title="收起地图"
+              title="收起地图（M）"
               onClick={() => toggle(false)}
               className="text-muted-foreground"
             >
@@ -387,7 +411,7 @@ export function TopicMinimap({
           {...float.handle}
           onClick={() => !float.wasDragged() && toggle(true)}
           aria-label="打开主题地图"
-          title="点击打开，拖动可移动位置"
+          title="点击或按 M 打开，拖动可移动位置"
           style={float.spot}
           className="fixed z-40 flex touch-none items-center gap-2 rounded-full border bg-popover py-1.5 pr-3.5 pl-3 text-xs shadow-lg transition-colors select-none hover:bg-accent"
         >
@@ -396,6 +420,7 @@ export function TopicMinimap({
           <span className="text-subtle-foreground tabular-nums">
             {position}
           </span>
+          <Key>M</Key>
         </button>
       )}
 
@@ -413,6 +438,9 @@ export function TopicMinimap({
               {topic.title}
             </DialogTitle>
             <ModeTabs value={bigMode} onChange={setBigMode} />
+            <span className="ml-auto shrink-0 text-xs text-subtle-foreground max-sm:hidden">
+              按 <Key>M</Key> 或 <Key>Esc</Key> 回到代码
+            </span>
           </div>
           {bigMode === "graph" ? (
             <>
@@ -659,5 +687,13 @@ function GraphLegend({ className }: { className?: string }) {
       </span>
       <span>拖动站点可调整位置</span>
     </span>
+  );
+}
+
+function Key({ children }: { children: string }) {
+  return (
+    <kbd className="rounded border bg-muted px-1 font-mono text-[10px] leading-4 text-muted-foreground">
+      {children}
+    </kbd>
   );
 }
