@@ -7,7 +7,12 @@ import { tokenize, type ThemedToken } from "@/lib/highlight";
 import { useDocument, useSource } from "@/lib/queries";
 import { formatBytes, splitPath } from "@/lib/format";
 import { cn } from "@/lib/utils";
-import { useLinkSetters, usePeek, type LineRange } from "./reader-link";
+import {
+  narrowest,
+  useLinkSetters,
+  usePeek,
+  type LineRange,
+} from "./reader-link";
 
 export type { LineRange };
 
@@ -125,6 +130,16 @@ function CodeLines({
   const container = useRef<HTMLDivElement>(null);
   const gutter = `calc(${String(lines.length).length}ch + 1.75rem)`;
   const { setHoverLine } = useLinkSetters();
+  // The explained block under the mouse lights up as a whole, mirroring hovering it on the right.
+  // Kept locally and only updated when the block changes, so moving within it does not re-render.
+  const [block, setBlock] = useState<LineRange | null>(null);
+  const hover = (line: number | null) => {
+    setHoverLine(line);
+    const next = narrowest(explained, line) ?? null;
+    setBlock((prev) =>
+      prev?.start === next?.start && prev?.end === next?.end ? prev : next,
+    );
+  };
   const peek = usePeek();
   const covered = useMemo(() => {
     const set = new Set<number>();
@@ -154,8 +169,8 @@ function CodeLines({
   return (
     <div
       ref={container}
-      onMouseOver={(e) => setHoverLine(lineAt(e.target))}
-      onMouseLeave={() => setHoverLine(null)}
+      onMouseOver={(e) => hover(lineAt(e.target))}
+      onMouseLeave={() => hover(null)}
       onClick={(e) => {
         // A click on the code selects the line, unless the reader is selecting text to copy.
         if (window.getSelection()?.toString()) return;
@@ -169,7 +184,9 @@ function CodeLines({
         {lines.map((text, i) => {
           const n = i + 1;
           const active = focus && n >= focus.start && n <= focus.end;
-          const peeked = peek && n >= peek.start && n <= peek.end;
+          const peeked =
+            (peek && n >= peek.start && n <= peek.end) ||
+            (block && n >= block.start && n <= block.end);
           return (
             <div
               key={i}
@@ -177,7 +194,7 @@ function CodeLines({
               className={cn(
                 "flex border-l-2 border-transparent pr-6",
                 covered.has(n) && "border-foreground/12",
-                peeked && "bg-accent",
+                peeked && "border-foreground/35 bg-accent",
                 active && "border-foreground/50 bg-warning/10",
               )}
             >
