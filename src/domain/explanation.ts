@@ -1,4 +1,4 @@
-import type { Explanation, Review } from "../shared/api.js";
+import type { Explanation, Review, TopicOverview } from "../shared/api.js";
 
 const isStringArray = (v: unknown): v is string[] =>
   Array.isArray(v) && v.every((s) => typeof s === "string");
@@ -90,4 +90,64 @@ export function renderMarkdown(e: Explanation, path: string): string {
       `## 代码依据\n${list(e.evidence.map((r) => `L${r.start}–L${r.end}：${r.explanation}`))}`,
     ].join("\n\n") + "\n"
   );
+}
+
+export interface Plan {
+  title: string;
+  plan: string;
+  files: { path: string; reason: string }[];
+}
+
+/** Keeps only real in-scope paths (models invent some), deduplicated and capped. */
+export function validatePlan(
+  value: unknown,
+  known: ReadonlySet<string>,
+  maxFiles: number,
+): Plan {
+  const v = value as Plan;
+  if (!v || !Array.isArray(v.files)) throw new Error("Invalid plan");
+  const seen = new Set<string>();
+  const files = v.files
+    .filter(
+      (f) =>
+        typeof f?.path === "string" &&
+        known.has(f.path) &&
+        !seen.has(f.path) &&
+        seen.add(f.path),
+    )
+    .slice(0, maxFiles)
+    .map((f) => ({
+      path: f.path,
+      reason: typeof f.reason === "string" ? f.reason : "",
+    }));
+  if (!files.length) throw new Error("Plan selected no files in scope");
+  return {
+    title: typeof v.title === "string" ? v.title.trim().slice(0, 60) : "",
+    plan: typeof v.plan === "string" ? v.plan : "",
+    files,
+  };
+}
+
+export function validateOverview(
+  value: unknown,
+  paths: ReadonlySet<string>,
+): TopicOverview {
+  const v = value as TopicOverview;
+  if (!v || typeof v.summary !== "string" || !v.summary.trim())
+    throw new Error("Missing overview summary");
+  if (!isStringArray(v.caveats)) throw new Error("Invalid caveats");
+  if (
+    !Array.isArray(v.steps) ||
+    !v.steps.every(
+      (s) => typeof s?.path === "string" && typeof s.description === "string",
+    )
+  )
+    throw new Error("Invalid overview steps");
+  return {
+    summary: v.summary,
+    steps: v.steps
+      .filter((s) => paths.has(s.path))
+      .map(({ path, description }) => ({ path, description })),
+    caveats: v.caveats,
+  };
 }

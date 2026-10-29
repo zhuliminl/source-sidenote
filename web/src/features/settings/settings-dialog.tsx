@@ -190,12 +190,12 @@ function ConfigForm({ tab }: { tab: Exclude<SettingsTab, "general"> }) {
             onChange={(v) => set("concurrency", v)}
           />
         </Row>
-        <Row label="每批文件上限" hint="一次最多加入队列的文件数">
+        <Row label="每个主题的文件上限" hint="规划时 AI 最多挑选的文件数，1–60">
           <NumberField
-            value={draft.maxFilesPerRun}
+            value={draft.maxFilesPerTopic}
             min={1}
-            max={1000}
-            onChange={(v) => set("maxFilesPerRun", v)}
+            max={60}
+            onChange={(v) => set("maxFilesPerTopic", v)}
           />
         </Row>
         <Row label="请求超时" hint="毫秒，1,000–180,000">

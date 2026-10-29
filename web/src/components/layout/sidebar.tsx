@@ -2,6 +2,7 @@ import { Link, NavLink, useMatch } from "react-router";
 import {
   Ellipsis,
   ListChecks,
+  ScrollText,
   Loader2,
   Settings,
   SquarePen,
@@ -65,6 +66,15 @@ export function Sidebar() {
             </span>
           ) : null}
         </NavLink>
+        <NavLink
+          to="/prompts"
+          className={({ isActive }) =>
+            cn(rowClass, isActive && "bg-sidebar-accent")
+          }
+        >
+          <ScrollText className="size-4" />
+          提示词
+        </NavLink>
       </div>
 
       <div className="mt-5 px-4 pb-1.5 text-xs font-medium text-subtle-foreground">
@@ -118,8 +128,6 @@ function ProjectList() {
 
 function ProjectRow({ project }: { project: ProjectSummary }) {
   const active = useMatch(`/projects/${project.id}`);
-  const pending =
-    project.covered < project.total || project.fresh < project.covered;
   return (
     <li
       className={cn(rowClass, "relative pr-1", active && "bg-sidebar-accent")}
@@ -131,11 +139,13 @@ function ProjectRow({ project }: { project: ProjectSummary }) {
       >
         {project.name}
       </Link>
-      {pending && (
+      {project.topics > 0 && (
         <span
-          className="size-1.5 shrink-0 rounded-full bg-warning group-hover/row:hidden"
-          aria-label="有未生成或过期的说明"
-        />
+          className="shrink-0 text-xs text-subtle-foreground tabular-nums group-hover/row:hidden"
+          aria-label={`${project.topics} 个主题`}
+        >
+          {project.topics}
+        </span>
       )}
       <ProjectActionsMenu project={project}>
         <Button

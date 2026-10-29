@@ -5,7 +5,8 @@
 ```text
 src/shared          HTTP 契约类型（服务端、CLI、管理页共用，仅类型）
 src/domain          实体、错误类型、说明校验与 Markdown 渲染；不依赖 HTTP/数据库
-src/application     用例：ProjectService（注册/扫描/调度/统计）、JobWorker（队列执行）、
+src/application     用例：ProjectService（注册/扫描/覆盖率）、TopicService（主题规划/确认/更新/删除）、
+                    JobWorker（队列执行：plan/generate/review/overview）、
                     ConfigService（zod 校验）、freshness（唯一的新鲜度定义）、container（组装）
 src/infrastructure  persistence（SQLite 迁移、仓储、配置文件）、source（扫描/安全读取/上下文）、
                     llm（Chat Completions 客户端与提示词）、路径与服务锁
@@ -21,15 +22,19 @@ editors/neovim      仅负责编辑器显示与 CLI 调用
 
 项目由 canonical realpath 唯一识别，数据库分配 UUID；同一 remote 的不同工作副本不混用数据。文件键为项目 UUID + 相对路径。重命名按旧文件移除、新文件加入处理。
 
-文档记录源码哈希、上下文哈希、提示词版本、模型标识、JSON 正文、Markdown、生成时间、复查 JSON。新鲜度 = 源码哈希 + 直接依赖指纹 + 提示词版本 + 当前配置的模型；换模型后已有文档变为待更新（未配置模型时不比较模型）。生成开始和写入前分别检查源码/上下文，阻止过期结果写回。
+说明以（主题，文件）为键，记录源码哈希、上下文哈希、提示词版本、模型标识、JSON 正文、Markdown、生成时间、复查 JSON。主题记录用户描述、补充要求、状态（planning / plan_failed / planned / confirmed）、规划说明、模型与链路导读；topic_files 保存确认后的文件、阅读顺序与入选理由。新鲜度 = 源码哈希 + 直接依赖指纹 + 提示词版本 + 当前配置的模型；换模型后已有文档变为待更新（未配置模型时不比较模型）。生成开始和写入前分别检查源码/上下文，阻止过期结果写回。
 
-上下文包含有限清单、README/构建文件和可解析的直接导入片段。上下文指纹只覆盖直接依赖（路径 + 内容哈希）：新增无关文件或修改 README 不会让整个项目的说明失效。不声称完成完整架构分析；依赖解析目前不支持 tsconfig aliases、Java wildcard、继承/反射或间接调用。
+规划上下文是文件清单（仅路径）和 README/构建文件；解释上下文是主题、主题文件的阅读顺序与入选理由、当前源码和可解析的直接导入片段。上下文指纹只覆盖直接依赖（路径 + 内容哈希）：新增无关文件或修改 README 不会让整个项目的说明失效。不声称完成完整架构分析；依赖解析目前不支持 tsconfig aliases、Java wildcard、继承/反射或间接调用。
 
 ## 生命周期
 
-`add → realpath → 扫描 → 更新清单 → 指纹比对 → 限量入队 → 模型 → JSON/行号/引用校验 → 保存`
+`add → realpath → 扫描 → 更新清单`（不调用模型）
 
-任务状态 queued/running/done/failed/cancelled。数据库部分唯一索引阻止同文件同类型重复活动任务。正常停止将中断的活动任务恢复 queued；进程崩溃后启动将 running 恢复 queued。模型请求不能保证 exactly-once：崩溃可能造成重复计费，但文档写入是幂等替换。
+`新建主题 → plan 任务（路径校验、去重、限量）→ 用户增删排序并确认 → 每个文件一个 generate 任务 → JSON/行号/引用校验 → 保存 → 全部完成后 overview 任务 → 链路导读`
+
+删除主题会删除其文件清单、说明，并取消未完成的任务；进行中的模型请求返回后发现主题已删除即丢弃结果。
+
+任务状态 queued/running/done/failed/cancelled。数据库部分唯一索引阻止同主题、同文件、同类型的重复活动任务。正常停止将中断的活动任务恢复 queued；进程崩溃后启动将 running 恢复 queued。模型请求不能保证 exactly-once：崩溃可能造成重复计费，但文档写入是幂等替换。
 
 生成和复查共用队列；复查只能针对当前有效说明，写回时用生成时间防止覆盖新说明的复查记录。复查保存结论、具体问题、模型和时间，不自动修改代码。
 
@@ -37,21 +42,27 @@ editors/neovim      仅负责编辑器显示与 CLI 调用
 
 无需登录：服务只监听 127.0.0.1，请求的 Host 必须是 `127.0.0.1:<端口>`，带 Origin 时必须同源，否则返回 403。
 
-| 路径                                 | 用途                                          |
-| ------------------------------------ | --------------------------------------------- |
-| GET /api/status                      | 服务状态                                      |
-| GET/PUT /api/config                  | 脱敏读取/更新模型配置                         |
-| GET/POST /api/projects               | 列表/注册并开始任务                           |
-| POST /api/projects/:id/refresh       | 重新扫描                                      |
-| POST /api/projects/:id/run           | `{kind: generate 或 review, path?: 相对路径}` |
-| GET /api/projects/:id/files          | 文件清单与每个文件的说明状态                  |
-| DELETE /api/projects/:id             | 移除项目及其说明/任务（不触碰源码）           |
-| GET /api/projects/:id/source?path=   | 扫描范围内文件的当前源码（阅读器用）          |
-| GET /api/projects/:id/document?path= | 文档与新鲜状态                                |
-| GET /api/jobs                        | 最近 200 个任务                               |
-| POST /api/jobs/:id/cancel            | 取消                                          |
-| GET /api/events                      | SSE 变更通知                                  |
-| POST /api/stop                       | 停止                                          |
+| 路径                               | 用途                                                   |
+| ---------------------------------- | ------------------------------------------------------ |
+| GET /api/status                    | 服务状态                                               |
+| GET/PUT /api/config                | 脱敏读取/更新模型配置                                  |
+| GET /api/prompts                   | 全部系统提示词原文及随附内容说明                       |
+| GET/POST /api/projects             | 列表（含覆盖率、主题数）/注册并扫描                    |
+| POST /api/projects/:id/refresh     | 重新扫描                                               |
+| GET /api/projects/:id/files        | 文件清单与覆盖每个文件的主题                           |
+| GET /api/projects/:id/source?path= | 扫描范围内文件的当前源码（阅读器用）                   |
+| DELETE /api/projects/:id           | 移除项目及其主题/说明/任务（不触碰源码）               |
+| GET/POST /api/projects/:id/topics  | 主题列表/新建主题并开始规划 `{request, instructions?}` |
+| GET/DELETE /api/topics/:id         | 主题详情（文件、状态、导读）/删除主题及其说明          |
+| POST /api/topics/:id/plan          | 重新规划（未确认的主题）                               |
+| POST /api/topics/:id/confirm       | `{files: [{path, reason}], instructions?}` 确认并生成  |
+| POST /api/topics/:id/refresh       | 生成缺失或过期的说明                                   |
+| POST /api/topics/:id/run           | `{path, kind: generate 或 review}` 单文件重新生成/复查 |
+| GET /api/topics/:id/document?path= | 文件在该主题下的说明与新鲜状态                         |
+| GET /api/jobs                      | 最近 200 个任务（含主题名）                            |
+| POST /api/jobs/:id/cancel          | 取消                                                   |
+| GET /api/events                    | SSE 变更通知                                           |
+| POST /api/stop                     | 停止                                                   |
 
 0.1 为开发协议，尚未承诺 API 向后兼容。未来发布稳定版前增加 /v1 路径、迁移和协议兼容测试。
 
@@ -59,5 +70,5 @@ editors/neovim      仅负责编辑器显示与 CLI 调用
 
 1. 真实模型与真实项目小样本验收；质量和费用记录。
 2. 增量索引、明确的预算、模型适配与测试连接。
-3. 项目/模块摘要与依赖传播，自动标记过期。
-4. 浏览器代码双栏阅读、VS Code 扩展。
+3. 规划阶段使用更丰富的结构信号（导入图、符号索引），提高大仓库的选文件质量。
+4. VS Code 扩展适配主题（目前在独立分支，基于旧的逐文件接口）。

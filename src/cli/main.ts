@@ -10,8 +10,7 @@ async function main() {
     options: {
       "no-open": { type: "boolean", default: false },
       port: { type: "string" },
-      refresh: { type: "boolean", default: false },
-      wait: { type: "boolean", default: false },
+      topic: { type: "string" },
       help: { type: "boolean", short: "h", default: false },
     },
   });
@@ -26,8 +25,7 @@ async function main() {
     flags: {
       open: !values["no-open"],
       port: values.port,
-      refresh: values.refresh,
-      wait: values.wait,
+      topic: values.topic,
     },
   });
 }

@@ -11,6 +11,17 @@ const migrations: string[] = [
    CREATE UNIQUE INDEX IF NOT EXISTS one_active ON jobs(project,path,kind) WHERE state IN ('queued','running');`,
   `ALTER TABLE jobs ADD COLUMN updated TEXT;
    CREATE INDEX IF NOT EXISTS jobs_queue ON jobs(state, created);`,
+  // Topics replace whole-project coverage; file-level explanations from v2 are not carried over.
+  `CREATE TABLE topics(id TEXT PRIMARY KEY, project TEXT, title TEXT, request TEXT, instructions TEXT, state TEXT, plan TEXT, error TEXT, model TEXT, overview TEXT, created TEXT);
+   CREATE INDEX topics_project ON topics(project, created);
+   CREATE TABLE topic_files(topic TEXT, path TEXT, ord INTEGER, reason TEXT, PRIMARY KEY(topic,path));
+   DROP TABLE docs;
+   CREATE TABLE docs(topic TEXT, project TEXT, path TEXT, hash TEXT, context TEXT, version TEXT, model TEXT, markdown TEXT, payload TEXT, generated TEXT, review TEXT, PRIMARY KEY(topic,path));
+   CREATE INDEX docs_project ON docs(project, path);
+   DELETE FROM jobs;
+   ALTER TABLE jobs ADD COLUMN topic TEXT NOT NULL DEFAULT '';
+   DROP INDEX one_active;
+   CREATE UNIQUE INDEX one_active ON jobs(topic,path,kind) WHERE state IN ('queued','running');`,
 ];
 
 export function openDatabase(home: string): DatabaseSync {

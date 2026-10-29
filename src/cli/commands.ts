@@ -4,10 +4,10 @@ import { relative, resolve, sep } from "node:path";
 import type {
   AddProjectResult,
   DocumentView,
-  JobView,
+  FileEntry,
   ProjectSummary,
-  RunResult,
   StatusView,
+  TopicSummary,
 } from "../shared/api.js";
 import { createServer, DEFAULT_PORT } from "../transport/http/server.js";
 import { ApiClient } from "./client.js";
@@ -16,11 +16,10 @@ export interface CommandContext {
   home: string;
   api: ApiClient;
   args: string[];
-  flags: { open: boolean; port?: string; refresh: boolean; wait: boolean };
+  flags: { open: boolean; port?: string; topic?: string };
 }
 
 const print = (value: unknown) => console.log(JSON.stringify(value, null, 2));
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 function openBrowser(url: string) {
   const [command, args] =
@@ -66,51 +65,51 @@ async function locate(api: ApiClient, file: string) {
   return { project, rel: relative(project.root, full).split(sep).join("/") };
 }
 
+/**
+ * Prints the explanation of a file within one topic (newest by default) as a single JSON line
+ * for editor adapters. Explanations are only created from topics in the web app.
+ */
 async function explain({ api, args, flags }: CommandContext) {
-  if (!args[0]) throw new Error("Usage: sidenote explain /absolute/file");
+  if (!args[0])
+    throw new Error("Usage: sidenote explain /absolute/file [--topic id]");
   const { project, rel } = await locate(api, args[0]);
-  const documentPath = `projects/${project.id}/document?path=${encodeURIComponent(rel)}`;
-  const queue = async () => {
-    const r = await api.post<RunResult>(`projects/${project.id}/run`, {
-      path: rel,
-    });
-    if (r.blocked) throw new Error(r.blocked);
-  };
-  if (flags.refresh) await queue();
-  let doc = await api.get<DocumentView>(documentPath);
-  if (doc.status === "missing" && !flags.refresh) await queue();
-  const waiting = flags.wait && (doc.status === "missing" || flags.refresh);
-  if (waiting) {
-    const previous = doc.status === "missing" ? undefined : doc.generated;
-    const done = (d: DocumentView) =>
-      d.status === "fresh" && (!flags.refresh || d.generated !== previous);
-    const deadline = Date.now() + 180000;
-    while (!done(doc)) {
-      if (Date.now() > deadline)
-        throw new Error("等待生成超时，请在管理页查看任务");
-      await sleep(700);
-      doc = await api.get<DocumentView>(documentPath);
-      const latest = (await api.get<JobView[]>("jobs")).find(
-        (j) =>
-          j.project === project.id && j.path === rel && j.kind === "generate",
-      );
-      if (
-        !done(doc) &&
-        latest &&
-        ["failed", "cancelled"].includes(latest.state)
+  const entry = (
+    await api.get<FileEntry[]>(`projects/${project.id}/files`)
+  ).find((f) => f.path === rel);
+  const titles = new Map(
+    (await api.get<TopicSummary[]>(`projects/${project.id}/topics`)).map(
+      (t) => [t.id, t.title],
+    ),
+  );
+  const topics = (entry?.topics ?? []).map((id) => ({
+    id,
+    title: titles.get(id) ?? id,
+  }));
+  const topic = flags.topic
+    ? topics.find((t) => t.id === flags.topic)
+    : topics.at(-1);
+  if (flags.topic && !topic) throw new Error("该文件不在指定主题中");
+  const doc: DocumentView = topic
+    ? await api.get<DocumentView>(
+        `topics/${topic.id}/document?path=${encodeURIComponent(rel)}`,
       )
-        throw new Error(latest.error || "生成已取消");
-    }
-  }
+    : { status: "missing", path: rel, markdown: "" };
   // Single-line JSON: consumed by editor adapters.
-  console.log(JSON.stringify(doc));
+  console.log(
+    JSON.stringify({
+      ...doc,
+      topic: topic ?? null,
+      topics,
+      url: `${api.connection.url}/projects/${project.id}`,
+    }),
+  );
 }
 
 export const usage = `Source Sidenote
   start [--no-open] [--port ${DEFAULT_PORT}]
   ui | status | stop | projects
   add [project-directory]
-  explain /absolute/file [--refresh] [--wait]
+  explain /absolute/file [--topic id]
 
 SIDENOTE_HOME 可覆盖全局数据目录。`;
 

@@ -8,9 +8,12 @@ import type {
   FileEntry,
   JobView,
   ProjectSummary,
+  PromptView,
   RunResult,
   SourceView,
   StatusView,
+  TopicSummary,
+  TopicView,
 } from "../../shared/api.js";
 import type { Container } from "../../application/container.js";
 import type { ChangeTopic } from "../../application/events.js";
@@ -18,20 +21,32 @@ import { VERSION } from "../../version.js";
 
 const idParams = z.object({ id: z.string().min(1) });
 const addBody = z.object({ root: z.string().min(1) });
-const runBody = z
-  .object({
-    kind: z.enum(["generate", "review"]).optional(),
-    path: z.string().min(1).optional(),
-  })
-  .default({});
-const documentQuery = z.object({ path: z.string().min(1) });
+const pathQuery = z.object({ path: z.string().min(1) });
+const text = z.string().max(4000);
+const topicCreate = z.object({ request: text, instructions: text.optional() });
+const topicReplan = z.object({ instructions: text.optional() }).default({});
+const topicConfirm = z.object({
+  files: z
+    .array(z.object({ path: z.string().min(1), reason: z.string() }))
+    .max(100),
+  instructions: text.optional(),
+});
+const fileRun = z.object({
+  path: z.string().min(1),
+  kind: z.enum(["generate", "review"]),
+});
 
 export function registerRoutes(
   app: FastifyInstance,
   c: Container,
   shutdown: () => void,
 ) {
-  const { projectService: projects, configService: config, worker } = c;
+  const {
+    projectService: projects,
+    topicService: topics,
+    configService: config,
+    worker,
+  } = c;
 
   app.get("/api/status", async (): Promise<StatusView> => ({
     name: "source-sidenote",
@@ -48,7 +63,11 @@ export function registerRoutes(
     return { ok: true };
   });
 
-  app.get("/api/projects", (): Promise<ProjectSummary[]> => projects.list());
+  app.get("/api/prompts", async (): Promise<PromptView[]> => topics.prompts());
+
+  app.get("/api/projects", async (): Promise<ProjectSummary[]> =>
+    projects.list(),
+  );
   app.post("/api/projects", (req): Promise<AddProjectResult> =>
     projects.add(addBody.parse(req.body).root),
   );
@@ -60,23 +79,49 @@ export function registerRoutes(
     await projects.rescan(idParams.parse(req.params).id);
     return { ok: true };
   });
-  app.post("/api/projects/:id/run", (req): Promise<RunResult> => {
-    const { kind, path } = runBody.parse(req.body ?? {});
-    return projects.schedule(idParams.parse(req.params).id, kind, path);
-  });
-  app.get("/api/projects/:id/files", (req): Promise<FileEntry[]> =>
+  app.get("/api/projects/:id/files", async (req): Promise<FileEntry[]> =>
     projects.files(idParams.parse(req.params).id),
   );
   app.get("/api/projects/:id/source", (req): Promise<SourceView> =>
     projects.source(
       idParams.parse(req.params).id,
-      documentQuery.parse(req.query).path,
+      pathQuery.parse(req.query).path,
     ),
   );
-  app.get("/api/projects/:id/document", (req): Promise<DocumentView> =>
-    projects.document(
+
+  app.get("/api/projects/:id/topics", (req): Promise<TopicSummary[]> =>
+    topics.list(idParams.parse(req.params).id),
+  );
+  app.post("/api/projects/:id/topics", (req): Promise<TopicView> =>
+    topics.create(idParams.parse(req.params).id, topicCreate.parse(req.body)),
+  );
+  app.get("/api/topics/:id", (req): Promise<TopicView> =>
+    topics.get(idParams.parse(req.params).id),
+  );
+  app.delete("/api/topics/:id", async (req) => {
+    topics.remove(idParams.parse(req.params).id);
+    return { ok: true };
+  });
+  app.post("/api/topics/:id/plan", (req): Promise<TopicView> =>
+    topics.replan(
       idParams.parse(req.params).id,
-      documentQuery.parse(req.query).path,
+      topicReplan.parse(req.body ?? {}).instructions,
+    ),
+  );
+  app.post("/api/topics/:id/confirm", (req): Promise<RunResult> =>
+    topics.confirm(idParams.parse(req.params).id, topicConfirm.parse(req.body)),
+  );
+  app.post("/api/topics/:id/refresh", (req): Promise<RunResult> =>
+    topics.refresh(idParams.parse(req.params).id),
+  );
+  app.post("/api/topics/:id/run", (req): Promise<RunResult> => {
+    const { path, kind } = fileRun.parse(req.body);
+    return topics.runFile(idParams.parse(req.params).id, path, kind);
+  });
+  app.get("/api/topics/:id/document", (req): Promise<DocumentView> =>
+    topics.document(
+      idParams.parse(req.params).id,
+      pathQuery.parse(req.query).path,
     ),
   );
 

@@ -4,12 +4,16 @@ import type {
   ConfigView,
   DocumentView,
   FileEntry,
-  JobKind,
   JobView,
   ProjectSummary,
+  PromptView,
   RunResult,
   SourceView,
   StatusView,
+  TopicConfirm,
+  TopicCreate,
+  TopicSummary,
+  TopicView,
 } from "@shared/api";
 
 export class ApiError extends Error {
@@ -50,8 +54,6 @@ export const api = {
     request<{ ok: true }>("DELETE", `projects/${id(project)}`),
   rescan: (project: string) =>
     request<{ ok: true }>("POST", `projects/${id(project)}/refresh`, {}),
-  run: (project: string, kind: JobKind, path?: string) =>
-    request<RunResult>("POST", `projects/${id(project)}/run`, { kind, path }),
   files: (project: string) =>
     request<FileEntry[]>("GET", `projects/${id(project)}/files`),
   source: (project: string, path: string) =>
@@ -59,10 +61,26 @@ export const api = {
       "GET",
       `projects/${id(project)}/source?path=${id(path)}`,
     ),
-  document: (project: string, path: string) =>
+  prompts: () => request<PromptView[]>("GET", "prompts"),
+  topics: (project: string) =>
+    request<TopicSummary[]>("GET", `projects/${id(project)}/topics`),
+  createTopic: (project: string, body: TopicCreate) =>
+    request<TopicView>("POST", `projects/${id(project)}/topics`, body),
+  topic: (topic: string) => request<TopicView>("GET", `topics/${id(topic)}`),
+  removeTopic: (topic: string) =>
+    request<{ ok: true }>("DELETE", `topics/${id(topic)}`),
+  replan: (topic: string, instructions?: string) =>
+    request<TopicView>("POST", `topics/${id(topic)}/plan`, { instructions }),
+  confirmTopic: (topic: string, body: TopicConfirm) =>
+    request<RunResult>("POST", `topics/${id(topic)}/confirm`, body),
+  refreshTopic: (topic: string) =>
+    request<RunResult>("POST", `topics/${id(topic)}/refresh`, {}),
+  runFile: (topic: string, path: string, kind: "generate" | "review") =>
+    request<RunResult>("POST", `topics/${id(topic)}/run`, { path, kind }),
+  document: (topic: string, path: string) =>
     request<DocumentView>(
       "GET",
-      `projects/${id(project)}/document?path=${id(path)}`,
+      `topics/${id(topic)}/document?path=${id(path)}`,
     ),
   jobs: () => request<JobView[]>("GET", "jobs"),
   cancelJob: (job: string) =>

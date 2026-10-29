@@ -4,8 +4,8 @@ import { subscribe } from "@/lib/api";
 import { keys } from "@/lib/queries";
 
 /**
- * Keeps queries in sync with server events. Bursts are coalesced because a
- * project refresh re-reads documented sources on the server.
+ * Keeps queries in sync with server events. Bursts are coalesced because topic
+ * views re-read documented sources on the server to judge freshness.
  */
 export function useLiveUpdates() {
   const qc = useQueryClient();
@@ -14,10 +14,16 @@ export function useLiveUpdates() {
     const pending = new Set<string>();
     let timer: ReturnType<typeof setTimeout> | undefined;
     const flush = () => {
-      if (pending.has("jobs") || pending.has("projects")) {
+      if (
+        pending.has("jobs") ||
+        pending.has("projects") ||
+        pending.has("topics")
+      ) {
         void qc.invalidateQueries({ queryKey: keys.jobs });
-        // Project stats, file states and documents all live under ["projects"].
+        // Project stats and file coverage live under ["projects"].
         void qc.invalidateQueries({ queryKey: keys.projects });
+        // Topic progress, plans and documents live under ["topics"].
+        void qc.invalidateQueries({ queryKey: keys.topicsRoot });
       }
       if (pending.has("config"))
         void qc.invalidateQueries({ queryKey: keys.config });

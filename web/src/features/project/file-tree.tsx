@@ -1,8 +1,8 @@
 import { useDeferredValue, useEffect, useMemo, useState } from "react";
 import { ChevronRight, Search } from "lucide-react";
-import type { FileEntry, FileStatus } from "@shared/api";
+import type { FileEntry, FileStatus, TopicView } from "@shared/api";
 import { Skeleton } from "@/components/ui/skeleton";
-import { StatusDot } from "@/components/status-dot";
+import { StatusDot, fileStatusLabel } from "@/components/status-dot";
 import { useFiles } from "@/lib/queries";
 import { splitPath } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -22,10 +22,28 @@ interface FileNode {
 }
 type TreeNode = FolderNode | FileNode;
 
-const needsAttention = (s: FileStatus) => s !== "fresh";
+/** Per-file marker: topic status inside a topic, otherwise whether any topic covers it. */
+type Mark = { status: FileStatus | "covered" | "none"; label: string };
+
+function markOf(file: FileEntry, topic: Map<string, FileStatus> | null): Mark {
+  if (topic) {
+    const status = topic.get(file.path);
+    return status
+      ? { status, label: `主题文件 · ${fileStatusLabel[status]}` }
+      : { status: "none", label: "不在当前主题" };
+  }
+  return file.topics.length
+    ? { status: "covered", label: `${file.topics.length} 个主题覆盖` }
+    : { status: "none", label: "还没有主题覆盖" };
+}
+
+const highlighted = (m: Mark) => m.status !== "none";
 
 /** Builds a sorted folder tree; single-child folder chains are compacted like VS Code. */
-function buildTree(files: FileEntry[]): TreeNode[] {
+function buildTree(
+  files: FileEntry[],
+  mark: (f: FileEntry) => Mark,
+): TreeNode[] {
   const root: FolderNode = {
     kind: "folder",
     name: "",
@@ -73,11 +91,7 @@ function buildTree(files: FileEntry[]): TreeNode[] {
     node.attention = node.children.reduce(
       (n, c) =>
         n +
-        (c.kind === "folder"
-          ? c.attention
-          : needsAttention(c.file.status)
-            ? 1
-            : 0),
+        (c.kind === "folder" ? c.attention : highlighted(mark(c.file)) ? 1 : 0),
       0,
     );
     const only = node.children[0];
@@ -96,31 +110,49 @@ const ancestors = (path: string) =>
 
 export function FileTree({
   projectId,
+  topic,
   selected,
   onSelect,
   className,
 }: {
   projectId: string;
+  topic: TopicView | null;
   selected: string | null;
   onSelect: (path: string) => void;
   className?: string;
 }) {
   const files = useFiles(projectId);
   const [query, setQuery] = useState("");
-  const [onlyAttention, setOnlyAttention] = useState(false);
+  // Inside a topic: reading order by default; the directory view can still show everything.
+  const [view, setView] = useState<"order" | "tree">("order");
+  const [onlyMarked, setOnlyMarked] = useState(true);
   const deferred = useDeferredValue(query.trim().toLowerCase());
   const [expanded, setExpanded] = useState<Set<string> | null>(null);
 
+  const topicStatus = useMemo(
+    () =>
+      topic?.state === "confirmed" || topic?.state === "planned"
+        ? new Map(topic.entries.map((e) => [e.path, e.status]))
+        : null,
+    [topic],
+  );
+  const mark = useMemo(
+    () => (f: FileEntry) => markOf(f, topicStatus),
+    [topicStatus],
+  );
+  const showOrder = Boolean(topicStatus) && view === "order";
+  const marked = files.data?.filter((f) => highlighted(mark(f))).length ?? 0;
   const visibleFiles = useMemo(
     () =>
       (files.data ?? []).filter(
-        (f) => !onlyAttention || needsAttention(f.status),
+        (f) => !topicStatus || !onlyMarked || highlighted(mark(f)),
       ),
-    [files.data, onlyAttention],
+    [files.data, onlyMarked, mark, topicStatus],
   );
-  const tree = useMemo(() => buildTree(visibleFiles), [visibleFiles]);
-  const attention =
-    files.data?.filter((f) => needsAttention(f.status)).length ?? 0;
+  const tree = useMemo(
+    () => buildTree(visibleFiles, mark),
+    [visibleFiles, mark],
+  );
 
   // Start with small projects fully open and large ones showing top-level folders.
   useEffect(() => {
@@ -139,6 +171,17 @@ export function FileTree({
     });
   }, [selected]);
 
+  // Inside a topic, open the folders that contain its files.
+  useEffect(() => {
+    if (!topicStatus) return;
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      for (const path of topicStatus.keys())
+        for (const a of ancestors(path)) next.add(a);
+      return next;
+    });
+  }, [topicStatus]);
+
   const toggle = (path: string) =>
     setExpanded((prev) => {
       const next = new Set(prev);
@@ -149,8 +192,16 @@ export function FileTree({
     });
 
   const matches = deferred
-    ? visibleFiles.filter((f) => f.path.toLowerCase().includes(deferred))
+    ? (files.data ?? []).filter((f) => f.path.toLowerCase().includes(deferred))
     : null;
+
+  const chip = (active: boolean) =>
+    cn(
+      "rounded-full px-2.5 py-1 tabular-nums transition-colors",
+      active
+        ? "bg-accent text-foreground"
+        : "text-muted-foreground hover:text-foreground",
+    );
 
   return (
     <div className={cn("flex min-h-0 flex-col bg-sidebar/40", className)}>
@@ -167,25 +218,44 @@ export function FileTree({
           />
         </label>
         <div className="flex items-center gap-1 text-xs">
-          {[
-            [false, `全部 ${files.data?.length ?? ""}`],
-            [true, `待更新 ${attention}`],
-          ].map(([value, label]) => (
-            <button
-              key={String(value)}
-              type="button"
-              aria-pressed={onlyAttention === value}
-              onClick={() => setOnlyAttention(value as boolean)}
-              className={cn(
-                "rounded-full px-2.5 py-1 tabular-nums transition-colors",
-                onlyAttention === value
-                  ? "bg-accent text-foreground"
-                  : "text-muted-foreground hover:text-foreground",
-              )}
-            >
-              {label}
-            </button>
-          ))}
+          {topicStatus ? (
+            <>
+              <button
+                type="button"
+                aria-pressed={view === "order"}
+                onClick={() => setView("order")}
+                className={chip(view === "order")}
+              >
+                阅读顺序
+              </button>
+              <button
+                type="button"
+                aria-pressed={view === "tree" && onlyMarked}
+                onClick={() => {
+                  setView("tree");
+                  setOnlyMarked(true);
+                }}
+                className={chip(view === "tree" && onlyMarked)}
+              >
+                目录 {marked}
+              </button>
+              <button
+                type="button"
+                aria-pressed={view === "tree" && !onlyMarked}
+                onClick={() => {
+                  setView("tree");
+                  setOnlyMarked(false);
+                }}
+                className={chip(view === "tree" && !onlyMarked)}
+              >
+                全部 {files.data?.length ?? ""}
+              </button>
+            </>
+          ) : (
+            <span className="px-1 text-subtle-foreground tabular-nums">
+              {files.data?.length ?? ""} 个文件 · {marked} 个已被主题覆盖
+            </span>
+          )}
         </div>
       </div>
 
@@ -213,6 +283,7 @@ export function FileTree({
               <SearchResult
                 key={f.path}
                 file={f}
+                mark={mark(f)}
                 selected={selected === f.path}
                 onSelect={onSelect}
               />
@@ -220,22 +291,91 @@ export function FileTree({
           ) : (
             <Empty>没有匹配的文件</Empty>
           )
+        ) : showOrder ? (
+          topic!.entries.map((e, i) => (
+            <OrderItem
+              key={e.path}
+              index={i}
+              path={e.path}
+              status={e.status}
+              selected={selected === e.path}
+              onSelect={onSelect}
+            />
+          ))
         ) : tree.length ? (
           <Nodes
             nodes={tree}
             depth={0}
             expanded={expanded}
             selected={selected}
+            mark={mark}
+            dimUnmarked={Boolean(topicStatus)}
             onToggle={toggle}
             onSelect={onSelect}
           />
         ) : (
-          <Empty>
-            {onlyAttention ? "所有说明都是最新的" : "没有纳入范围的源码文件"}
-          </Empty>
+          <Empty>没有纳入范围的源码文件</Empty>
         )}
       </div>
     </div>
+  );
+}
+
+function MarkDot({ mark }: { mark: Mark }) {
+  if (mark.status === "none")
+    return <span className="inline-block size-1.5" aria-hidden />;
+  if (mark.status === "covered")
+    return (
+      <span
+        role="img"
+        aria-label={mark.label}
+        className="inline-block size-1.5 shrink-0 rounded-full bg-foreground/45"
+      />
+    );
+  return <StatusDot status={mark.status} />;
+}
+
+function OrderItem({
+  index,
+  path,
+  status,
+  selected,
+  onSelect,
+}: {
+  index: number;
+  path: string;
+  status: FileStatus;
+  selected: boolean;
+  onSelect: (path: string) => void;
+}) {
+  const { dir, name } = splitPath(path);
+  return (
+    <button
+      type="button"
+      onClick={() => onSelect(path)}
+      title={`${path} · ${fileStatusLabel[status]}`}
+      className={cn(
+        "flex w-full items-start gap-2 rounded-md px-2 py-1.5 text-left transition-colors hover:bg-accent/70",
+        selected && "bg-accent hover:bg-accent",
+      )}
+    >
+      <span className="mt-px w-4 shrink-0 text-right text-[11px] text-subtle-foreground tabular-nums">
+        {index + 1}
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="flex items-center gap-2">
+          <span className={cn("truncate", selected && "font-medium")}>
+            {name}
+          </span>
+          <StatusDot status={status} className="ml-auto" />
+        </span>
+        {dir && (
+          <span className="block truncate font-mono text-[10.5px] text-subtle-foreground">
+            {dir}
+          </span>
+        )}
+      </span>
+    </button>
   );
 }
 
@@ -248,6 +388,8 @@ function Nodes({
   depth: number;
   expanded: Set<string>;
   selected: string | null;
+  mark: (f: FileEntry) => Mark;
+  dimUnmarked: boolean;
   onToggle: (path: string) => void;
   onSelect: (path: string) => void;
 }) {
@@ -255,7 +397,8 @@ function Nodes({
   return (
     <>
       {nodes.map((node) => {
-        if (node.kind === "file")
+        if (node.kind === "file") {
+          const m = props.mark(node.file);
           return (
             <button
               key={node.path}
@@ -263,20 +406,24 @@ function Nodes({
               role="treeitem"
               aria-selected={props.selected === node.path}
               onClick={() => props.onSelect(node.path)}
-              title={`${node.path} · ${node.file.status === "fresh" ? "说明最新" : node.file.status === "stale" ? "说明已过期" : "未生成说明"}`}
+              title={`${node.path} · ${m.label}`}
               style={indent}
               className={cn(
                 "flex h-7 w-full items-center gap-2 rounded-md pr-2 text-left transition-colors hover:bg-accent/70",
+                props.dimUnmarked &&
+                  !highlighted(m) &&
+                  "text-subtle-foreground",
                 props.selected === node.path &&
-                  "bg-accent font-medium hover:bg-accent",
+                  "bg-accent font-medium text-foreground hover:bg-accent",
               )}
             >
               <span className="flex w-3.5 shrink-0 justify-center">
-                <StatusDot status={node.file.status} />
+                <MarkDot mark={m} />
               </span>
               <span className="truncate">{node.name}</span>
             </button>
           );
+        }
         const open = props.expanded.has(node.path);
         return (
           <div key={node.path} role="group">
@@ -296,10 +443,9 @@ function Nodes({
               />
               <span className="truncate">{node.name}</span>
               {!open && node.attention > 0 && (
-                <span
-                  className="ml-auto size-1.5 shrink-0 rounded-full bg-warning"
-                  aria-label={`${node.attention} 个待更新`}
-                />
+                <span className="ml-auto text-[11px] text-subtle-foreground tabular-nums">
+                  {node.attention}
+                </span>
               )}
             </button>
             {open && (
@@ -314,10 +460,12 @@ function Nodes({
 
 function SearchResult({
   file,
+  mark,
   selected,
   onSelect,
 }: {
   file: FileEntry;
+  mark: Mark;
   selected: boolean;
   onSelect: (path: string) => void;
 }) {
@@ -331,7 +479,7 @@ function SearchResult({
         selected && "bg-accent hover:bg-accent",
       )}
     >
-      <StatusDot status={file.status} />
+      <MarkDot mark={mark} />
       <span className="shrink-0">{name}</span>
       <span className="min-w-0 truncate font-mono text-[11px] text-subtle-foreground">
         {dir}

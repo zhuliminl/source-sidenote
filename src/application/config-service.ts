@@ -22,7 +22,7 @@ export const configUpdateSchema = z.object({
   model: z.string().trim(),
   apiKey: z.string().optional(),
   concurrency: bounded(configLimits.concurrency),
-  maxFilesPerRun: bounded(configLimits.maxFilesPerRun),
+  maxFilesPerTopic: bounded(configLimits.maxFilesPerTopic),
   timeoutMs: bounded(configLimits.timeoutMs),
 }) satisfies z.ZodType<ConfigUpdate>;
 

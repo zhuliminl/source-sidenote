@@ -1,8 +1,23 @@
 import { useEffect, useState } from "react";
 import { useParams, useSearchParams } from "react-router";
-import { ArrowLeft, ChevronDown, Sparkles } from "lucide-react";
-import type { ProjectSummary } from "@shared/api";
+import {
+  ArrowLeft,
+  Check,
+  ChevronDown,
+  FolderTree,
+  Layers,
+  Plus,
+  RefreshCw,
+} from "lucide-react";
+import type { ProjectSummary, TopicView as Topic } from "@shared/api";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   ResizableHandle,
@@ -11,13 +26,21 @@ import {
 } from "@/components/ui/resizable";
 import { PageHeader } from "@/components/layout/page-header";
 import { useMediaQuery } from "@/hooks/use-media-query";
-import { useProjects, useRun } from "@/lib/queries";
+import {
+  useJobs,
+  useProjects,
+  useRefreshTopic,
+  useTopic,
+  useTopics,
+} from "@/lib/queries";
 import { cn } from "@/lib/utils";
 import { ProjectActionsMenu } from "./project-actions";
 import { FileTree } from "./file-tree";
 import { CodeViewer, type LineRange } from "./code-viewer";
 import { ExplanationPanel } from "./explanation-panel";
-import { ProjectOverview } from "./project-overview";
+import { ProjectOverview, topicStateLabel } from "./project-overview";
+import { TopicView } from "../topics/topic-view";
+import { CreateTopicDialog } from "../topics/create-topic-dialog";
 
 function parseLines(value: string | null): LineRange | null {
   const m = value?.match(/^(\d+)(?:-(\d+))?$/);
@@ -26,12 +49,23 @@ function parseLines(value: string | null): LineRange | null {
   return { start, end: Math.max(start, Number(m[2] ?? m[1])) };
 }
 
-/** Reader state lives in the URL (?file=…&lines=12-30) so views can be linked and revisited. */
+/** Reader state lives in the URL (?topic=…&file=…&lines=12-30) so views can be linked and revisited. */
 function useReaderState() {
   const [params, setParams] = useSearchParams();
+  const topic = params.get("topic");
   const file = params.get("file");
   const focus = parseLines(params.get("lines"));
-  const select = (path: string | null) => setParams(path ? { file: path } : {});
+  const select = (path: string | null) =>
+    setParams({
+      ...(topic ? { topic } : {}),
+      ...(path ? { file: path } : {}),
+    });
+  // Switching topics keeps the open file, so the same code can be read through another topic.
+  const selectTopic = (id: string | null, keepFile = true) =>
+    setParams({
+      ...(id ? { topic: id } : {}),
+      ...(keepFile && file ? { file } : {}),
+    });
   const setFocus = (range: LineRange | null) =>
     setParams(
       (prev) => {
@@ -48,7 +82,7 @@ function useReaderState() {
       },
       { replace: true },
     );
-  return { file, focus, select, setFocus };
+  return { topic, file, focus, select, selectTopic, setFocus };
 }
 
 export function ProjectPage() {
@@ -72,15 +106,25 @@ export function ProjectPage() {
 }
 
 function Reader({ project }: { project: ProjectSummary }) {
-  const run = useRun();
   const state = useReaderState();
+  const topics = useTopics(project.id);
+  const topicQuery = useTopic(state.topic);
+  const topic = topicQuery.data ?? null;
+  const [creating, setCreating] = useState(false);
   const wide = useMediaQuery("(min-width: 1100px)");
   const medium = useMediaQuery("(min-width: 768px)");
-  const outdated = project.total - project.fresh;
+
+  // A deleted or unknown topic in the URL falls back to the project view.
+  const missingTopic = state.topic && topicQuery.isError;
+  useEffect(() => {
+    if (missingTopic) state.selectTopic(null);
+    // Only react to the topic disappearing, not to every URL change.
+  }, [missingTopic]);
 
   const tree = (className?: string) => (
     <FileTree
       projectId={project.id}
+      topic={topic}
       selected={state.file}
       onSelect={state.select}
       className={className}
@@ -97,12 +141,33 @@ function Reader({ project }: { project: ProjectSummary }) {
   const explanation = (file: string) => (
     <ExplanationPanel
       projectId={project.id}
+      topic={topic}
       path={file}
       focus={state.focus}
       onFocus={state.setFocus}
       onNavigate={state.select}
+      onSelectTopic={(id) => state.selectTopic(id)}
+      onCreateTopic={() => setCreating(true)}
     />
   );
+  const home = () =>
+    topic ? (
+      <TopicView
+        key={topic.id}
+        topic={topic}
+        onOpenFile={state.select}
+        onDeleted={() => state.selectTopic(null, false)}
+      />
+    ) : (
+      <Overview>
+        <ProjectOverview
+          project={project}
+          topics={topics.data}
+          onSelectTopic={(id) => state.selectTopic(id, false)}
+          onCreateTopic={() => setCreating(true)}
+        />
+      </Overview>
+    );
 
   return (
     <>
@@ -110,26 +175,43 @@ function Reader({ project }: { project: ProjectSummary }) {
         <ProjectActionsMenu project={project}>
           <button
             type="button"
-            className="flex min-w-0 items-center gap-1 rounded-lg px-2.5 py-1.5 text-lg font-medium transition-colors hover:bg-accent data-[state=open]:bg-accent"
+            className="flex min-w-0 shrink items-center gap-1 rounded-lg px-2.5 py-1.5 text-lg font-medium transition-colors hover:bg-accent data-[state=open]:bg-accent"
           >
             <span className="truncate">{project.name}</span>
             <ChevronDown className="size-4 shrink-0 text-muted-foreground" />
           </button>
         </ProjectActionsMenu>
-        {outdated > 0 && (
-          <Button
-            size="sm"
-            variant="outline"
-            className="ml-auto"
-            disabled={run.isPending}
-            onClick={() =>
-              run.mutate({ project: project.id, kind: "generate" })
-            }
-          >
-            <Sparkles />
-            <span className="max-sm:sr-only">更新 {outdated} 个说明</span>
-          </Button>
-        )}
+        <span className="text-subtle-foreground">/</span>
+        <TopicMenu
+          project={project.id}
+          current={topic}
+          onSelect={(id) => state.selectTopic(id, Boolean(id))}
+          onCreate={() => setCreating(true)}
+        />
+        <div className="ml-auto flex items-center gap-2">
+          {topic && state.file && (
+            <Button
+              size="sm"
+              variant="ghost"
+              className="max-sm:hidden"
+              onClick={() => state.select(null)}
+            >
+              <Layers />
+              主题概览
+            </Button>
+          )}
+          {topic ? <TopicRefresh topic={topic} /> : null}
+          {!topic && (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setCreating(true)}
+            >
+              <Plus />
+              <span className="max-sm:sr-only">新建主题</span>
+            </Button>
+          )}
+        </div>
       </PageHeader>
 
       <div className="min-h-0 flex-1 border-t">
@@ -160,20 +242,12 @@ function Reader({ project }: { project: ProjectSummary }) {
                 </ResizablePanel>
               </>
             ) : (
-              <ResizablePanel id="overview">
-                <Overview project={project} />
-              </ResizablePanel>
+              <ResizablePanel id="overview">{home()}</ResizablePanel>
             )}
           </ResizablePanelGroup>
         ) : (
           <div className="flex h-full">
-            {(medium || !state.file) &&
-              tree(
-                cn(
-                  "h-full shrink-0 border-r",
-                  medium ? "w-60" : "w-full border-r-0",
-                ),
-              )}
+            {medium && tree("h-full w-60 shrink-0 border-r")}
             {state.file ? (
               <TabbedPanes
                 focus={state.focus}
@@ -183,19 +257,111 @@ function Reader({ project }: { project: ProjectSummary }) {
                 explanation={explanation(state.file)}
               />
             ) : (
-              medium && <Overview project={project} />
+              home()
             )}
           </div>
         )}
       </div>
+      <CreateTopicDialog
+        project={project.id}
+        open={creating}
+        onOpenChange={setCreating}
+        onCreated={(id) => state.selectTopic(id, false)}
+      />
     </>
   );
 }
 
-function Overview({ project }: { project: ProjectSummary }) {
+function TopicMenu({
+  project,
+  current,
+  onSelect,
+  onCreate,
+}: {
+  project: string;
+  current: Topic | null;
+  onSelect: (topic: string | null) => void;
+  onCreate: () => void;
+}) {
+  const topics = useTopics(project);
+  return (
+    <DropdownMenu modal={false}>
+      <DropdownMenuTrigger asChild>
+        <button
+          type="button"
+          className="flex min-w-0 shrink items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[15px] transition-colors hover:bg-accent data-[state=open]:bg-accent"
+        >
+          {current ? (
+            <Layers className="size-4 shrink-0 text-muted-foreground" />
+          ) : (
+            <FolderTree className="size-4 shrink-0 text-muted-foreground" />
+          )}
+          <span className="max-w-[28ch] truncate">
+            {current?.title ?? "全部文件"}
+          </span>
+          <ChevronDown className="size-4 shrink-0 text-muted-foreground" />
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start" className="w-72">
+        <DropdownMenuItem onSelect={() => onSelect(null)}>
+          <FolderTree />
+          全部文件与覆盖率
+          {!current && <Check className="ml-auto" />}
+        </DropdownMenuItem>
+        {topics.data && topics.data.length > 0 && <DropdownMenuSeparator />}
+        {topics.data?.map((t) => (
+          <DropdownMenuItem key={t.id} onSelect={() => onSelect(t.id)}>
+            <Layers />
+            <span className="min-w-0 flex-1 truncate">{t.title}</span>
+            {t.id === current?.id ? (
+              <Check className="ml-auto" />
+            ) : (
+              t.state !== "confirmed" && (
+                <span className="ml-auto text-xs text-subtle-foreground">
+                  {topicStateLabel[t.state]}
+                </span>
+              )
+            )}
+          </DropdownMenuItem>
+        ))}
+        <DropdownMenuSeparator />
+        <DropdownMenuItem onSelect={onCreate}>
+          <Plus />
+          新建主题
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
+/** Topic-level update: only offered when something is missing or outdated and nothing is running. */
+function TopicRefresh({ topic }: { topic: Topic }) {
+  const refresh = useRefreshTopic();
+  const jobs = useJobs();
+  if (topic.state !== "confirmed") return null;
+  const running = jobs.data?.some(
+    (j) =>
+      j.topic === topic.id && (j.state === "queued" || j.state === "running"),
+  );
+  const outdated = topic.files - topic.fresh;
+  if (running || outdated === 0) return null;
+  return (
+    <Button
+      size="sm"
+      variant="outline"
+      disabled={refresh.isPending}
+      onClick={() => refresh.mutate(topic.id)}
+    >
+      <RefreshCw />
+      <span className="max-sm:sr-only">更新 {outdated} 份说明</span>
+    </Button>
+  );
+}
+
+function Overview({ children }: { children: React.ReactNode }) {
   return (
     <div className="h-full min-w-0 flex-1 overflow-y-auto scrollbar-thin">
-      <ProjectOverview project={project} />
+      {children}
     </div>
   );
 }

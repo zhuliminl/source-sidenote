@@ -47,50 +47,68 @@ test("scanner excludes dependencies, secrets, ignored files and symlinks", async
     await rm(root, { recursive: true, force: true });
   }
 });
-test("HTTP origin checks, generation, cache, stale detection, review, cancellation and restart", async () => {
+test("topics: plan, confirm, explain, overview, review, staleness, cancellation, restart and delete", async () => {
   const home = await mkdtemp(join(tmpdir(), "sidenote-home-"));
   const root = await mkdtemp(join(tmpdir(), "sidenote-project-"));
-  let calls = 0;
+  const calls = { plan: 0, explain: 0, overview: 0, review: 0 };
   let delay = 0;
+  let planned = [
+    { path: "hello.ts", reason: "入口" },
+    { path: "nope.ts", reason: "模型编造的路径" },
+  ];
   let server;
   const mock = httpServer(async (req, res) => {
     let text = "";
     for await (const chunk of req) text += chunk;
-    calls++;
-    const body = JSON.parse(text);
-    await new Promise((r) => setTimeout(r, delay));
+    const system = JSON.parse(text).messages[0].content;
+    const kind = system.includes("挑选")
+      ? "plan"
+      : system.includes("导读")
+        ? "overview"
+        : system.includes("复查")
+          ? "review"
+          : "explain";
+    calls[kind]++;
+    await new Promise((r) => setTimeout(r, kind === "explain" ? delay : 0));
+    const answers = {
+      plan: { title: "问候链路", plan: "从入口读起。", files: planned },
+      explain: explanation,
+      overview: {
+        summary: "整条链路只有一个函数。",
+        steps: [
+          { path: "hello.ts", description: "返回值" },
+          { path: "ghost.ts", description: "x" },
+        ],
+        caveats: [],
+      },
+      review: { verdict: "pass", issues: [] },
+    };
     res.setHeader("Content-Type", "application/json");
     res.end(
       JSON.stringify({
-        choices: [
-          {
-            message: {
-              content: JSON.stringify(
-                body.messages[0].content.includes("复查")
-                  ? { verdict: "pass", issues: [] }
-                  : explanation,
-              ),
-            },
-          },
-        ],
+        choices: [{ message: { content: JSON.stringify(answers[kind]) } }],
       }),
     );
   });
   await new Promise((r) => mock.listen(0, "127.0.0.1", r));
+  const baseUrl = `http://127.0.0.1:${mock.address().port}/v1`;
   try {
     await writeFile(join(root, "hello.ts"), "export const hello = () => 1;\n");
+    await writeFile(join(root, "other.ts"), "export const other = 1;\n");
     server = await createServer(home, 0);
-    const api = async (path, body, method) => {
+    const call = async (path, body, method) => {
       const r = await fetch(server.url + "/api/" + path, {
         method: method || (body ? "POST" : "GET"),
         headers: body ? { "Content-Type": "application/json" } : {},
         body: body ? JSON.stringify(body) : undefined,
       });
-      const value = await r.json();
-      assert.equal(r.status, 200, JSON.stringify(value));
-      return value;
+      return { status: r.status, body: await r.json() };
     };
-    assert.equal((await fetch(server.url + "/api/config")).status, 200);
+    const api = async (...args) => {
+      const { status, body } = await call(...args);
+      assert.equal(status, 200, JSON.stringify(body));
+      return body;
+    };
     assert.equal(
       (
         await fetch(server.url + "/api/config", {
@@ -99,68 +117,120 @@ test("HTTP origin checks, generation, cache, stale detection, review, cancellati
       ).status,
       403,
     );
+    const insecure = await call(
+      "config",
+      { baseUrl: "http://example.com/v1", model: "x" },
+      "PUT",
+    );
+    assert.equal(insecure.status, 400);
+    assert.match(insecure.body.error, /HTTPS/);
+
+    // Adding a project only scans it: no model calls, nothing explained.
+    const { project } = await api("projects", { root });
+    const id = project.id;
+    assert.equal(
+      (await call(`projects/${id}/topics`, { request: "x" })).status,
+      400,
+    );
     await api(
       "config",
-      {
-        baseUrl: `http://127.0.0.1:${mock.address().port}/v1`,
-        model: "fixture",
-        apiKey: "never-echo-this",
-        concurrency: 1,
-      },
+      { baseUrl, model: "fixture", apiKey: "never-echo-this", concurrency: 1 },
       "PUT",
     );
     assert.ok(!JSON.stringify(await api("config")).includes("never-echo-this"));
-    const raw = (path, init) =>
-      fetch(server.url + "/api/" + path, {
-        ...init,
-        headers: { "Content-Type": "application/json" },
-      });
-    assert.equal((await raw("projects/nope/files")).status, 404);
-    const insecure = await raw("config", {
-      method: "PUT",
-      body: JSON.stringify({ baseUrl: "http://example.com/v1", model: "x" }),
+    assert.deepEqual((await api("projects"))[0], {
+      ...project,
+      total: 2,
+      covered: 0,
+      topics: 0,
     });
-    assert.equal(insecure.status, 400);
-    assert.match((await insecure.json()).error, /HTTPS/);
-    const added = await api("projects", { root });
-    assert.equal(added.queued, 1);
-    const id = added.project.id;
-    await until(async () =>
-      (await api("jobs")).some((j) => j.state === "done"),
+
+    // The prompts the service will send are published, including the user's own instructions.
+    const prompts = await api("prompts");
+    assert.deepEqual(
+      prompts.map((p) => p.id),
+      ["plan", "explain", "overview", "review"],
     );
+
+    let topic = await api(`projects/${id}/topics`, {
+      request: "hello 是怎么返回的",
+      instructions: "用一句话",
+    });
+    assert.equal(topic.state, "planning");
+    await until(
+      async () => (await api(`topics/${topic.id}`)).state === "planned",
+    );
+    topic = await api(`topics/${topic.id}`);
+    assert.equal(topic.title, "问候链路");
+    // Invented paths are dropped from the plan.
+    assert.deepEqual(topic.entries, [
+      { path: "hello.ts", reason: "入口", status: "missing" },
+    ]);
+    assert.equal(
+      calls.explain,
+      0,
+      "nothing is explained before the user confirms",
+    );
+
+    const confirmed = await api(`topics/${topic.id}/confirm`, {
+      files: [...topic.entries, { path: "../etc/passwd", reason: "" }],
+      instructions: "用一句话",
+    });
+    assert.equal(confirmed.queued, 1);
+    await until(
+      async () => (await api(`topics/${topic.id}`)).overview !== null,
+    );
+    topic = await api(`topics/${topic.id}`);
+    assert.equal(topic.fresh, 1);
+    assert.equal(topic.model, "fixture");
+    assert.deepEqual(
+      topic.overview.steps.map((s) => s.path),
+      ["hello.ts"],
+    );
+    assert.equal(calls.explain, 1);
+    const doc = `topics/${topic.id}/document?path=hello.ts`;
+    assert.equal((await api(doc)).status, "fresh");
+    assert.deepEqual(await api(`projects/${id}/files`), [
+      { path: "hello.ts", bytes: 30, topics: [topic.id] },
+      { path: "other.ts", bytes: 24, topics: [] },
+    ]);
     assert.equal((await api("projects"))[0].covered, 1);
+    // Refreshing a topic whose explanations are all fresh calls nothing.
+    assert.equal((await api(`topics/${topic.id}/refresh`, {})).queued, 0);
+    assert.equal(calls.explain, 1);
+
+    await api(`topics/${topic.id}/run`, { path: "hello.ts", kind: "review" });
+    await until(async () => (await api(doc)).review?.verdict === "pass");
     assert.equal(
-      (await api(`projects/${id}/document?path=hello.ts`)).status,
-      "fresh",
+      (
+        await call(`topics/${topic.id}/run`, {
+          path: "other.ts",
+          kind: "generate",
+        })
+      ).status,
+      404,
     );
-    assert.equal((await api("projects", { root })).queued, 0);
-    assert.equal(calls, 1);
-    await api(`projects/${id}/run`, { kind: "review" });
-    await until(async () => (await api("projects"))[0].reviewed === 1);
+
     await writeFile(join(root, "hello.ts"), "export const hello = () => 2;\n");
-    assert.equal(
-      (await api(`projects/${id}/document?path=hello.ts`)).status,
-      "stale",
-    );
+    assert.equal((await api(doc)).status, "stale");
+    // The source changes while the model is answering: the answer is discarded.
     delay = 250;
-    const before = calls;
-    await api("projects", { root });
-    // Wait for the model request, not just state=running: the source snapshot is taken after that.
-    await until(async () => calls > before);
+    const before = calls.explain;
+    await api(`topics/${topic.id}/refresh`, {});
+    await until(async () => calls.explain > before);
     await writeFile(join(root, "hello.ts"), "export const hello = () => 3;\n");
     await until(async () =>
       (await api("jobs")).some((j) => j.state === "failed"),
     );
-    assert.equal(
-      (await api(`projects/${id}/document?path=hello.ts`)).status,
-      "stale",
-    );
+    assert.equal((await api(doc)).status, "stale");
+
     delay = 1000;
-    await api("projects", { root });
+    await api(`topics/${topic.id}/refresh`, {});
     await until(async () =>
       (await api("jobs")).some((j) => j.state === "running"),
     );
     const running = (await api("jobs")).find((j) => j.state === "running");
+    assert.equal(running.topicTitle, "问候链路");
     await api(`jobs/${running.id}/cancel`, {});
     await until(async () =>
       (await api("jobs")).some(
@@ -170,45 +240,40 @@ test("HTTP origin checks, generation, cache, stale detection, review, cancellati
     await server.app.close();
     server = await createServer(home, 0);
     delay = 0;
-    await api("projects", { root });
-    await until(
-      async () =>
-        (await api(`projects/${id}/document?path=hello.ts`)).status === "fresh",
-    );
-    assert.equal((await api("projects"))[0].covered, 1);
-    const files = await api(`projects/${id}/files`);
-    assert.deepEqual(files, [
-      { path: "hello.ts", bytes: files[0].bytes, status: "fresh" },
-    ]);
+    await api(`topics/${topic.id}/refresh`, {});
+    await until(async () => (await api(doc)).status === "fresh");
+
     // Switching models marks earlier explanations for regeneration.
-    await api(
-      "config",
-      {
-        baseUrl: `http://127.0.0.1:${mock.address().port}/v1`,
-        model: "fixture-2",
-      },
-      "PUT",
-    );
-    assert.equal(
-      (await api(`projects/${id}/document?path=hello.ts`)).status,
-      "stale",
-    );
-    assert.equal((await api(`projects/${id}/files`))[0].status, "stale");
-    await api(
-      "config",
-      {
-        baseUrl: `http://127.0.0.1:${mock.address().port}/v1`,
-        model: "fixture",
-      },
-      "PUT",
-    );
+    await api("config", { baseUrl, model: "fixture-2" }, "PUT");
+    assert.equal((await api(doc)).status, "stale");
+    assert.equal((await api(`topics/${topic.id}`)).entries[0].status, "stale");
+    await api("config", { baseUrl, model: "fixture" }, "PUT");
+
     const source = await api(`projects/${id}/source?path=hello.ts`);
     assert.equal(source.content, "export const hello = () => 3;\n");
     assert.equal(
-      (await fetch(`${server.url}/api/projects/${id}/source?path=../x.ts`))
-        .status,
+      (await call(`projects/${id}/source?path=../x.ts`)).status,
       404,
     );
+
+    // A failed plan can be retried; deleting a topic removes what it generated.
+    planned = [{ path: "missing.ts", reason: "" }];
+    const second = await api(`projects/${id}/topics`, {
+      request: "不存在的功能",
+    });
+    await until(
+      async () => (await api(`topics/${second.id}`)).state === "plan_failed",
+    );
+    assert.match((await api(`topics/${second.id}`)).error, /no files/);
+    assert.equal((await api(`projects/${id}/topics`)).length, 2);
+    await api(`topics/${topic.id}`, undefined, "DELETE");
+    assert.equal((await call(doc)).status, 404);
+    assert.equal((await api("projects"))[0].covered, 0);
+    assert.deepEqual(
+      (await api(`projects/${id}/topics`)).map((t) => t.id),
+      [second.id],
+    );
+
     await api(`projects/${id}`, undefined, "DELETE");
     assert.deepEqual(await api("projects"), []);
   } finally {
@@ -303,7 +368,7 @@ test("unfinished jobs recover and SSE connections do not block shutdown", async 
   let server = await createServer(home, 0);
   try {
     const p = server.container.projects.register("/fixture", "fixture");
-    server.container.jobs.enqueue(p.id, "a.ts");
+    server.container.jobs.enqueue(p.id, "topic", "a.ts");
     server.container.db.exec("UPDATE jobs SET state='running'");
     const response = await fetch(server.url + "/api/events");
     const reader = response.body.getReader();

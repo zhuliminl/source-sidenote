@@ -5,8 +5,10 @@ import type {
   Job,
   Project,
   SourceFile,
+  Topic,
+  TopicFileRecord,
 } from "../../domain/model.js";
-import type { JobKind, JobState } from "../../shared/api.js";
+import type { JobKind, JobState, TopicState } from "../../shared/api.js";
 import { notFound } from "../../domain/errors.js";
 import { transaction } from "./database.js";
 
@@ -34,7 +36,12 @@ export class ProjectRepository {
   }
   remove(id: string) {
     transaction(this.db, () => {
-      for (const table of ["files", "docs", "jobs"])
+      this.db
+        .prepare(
+          "DELETE FROM topic_files WHERE topic IN (SELECT id FROM topics WHERE project=?)",
+        )
+        .run(id);
+      for (const table of ["files", "docs", "jobs", "topics"])
         this.db.prepare(`DELETE FROM ${table} WHERE project=?`).run(id);
       this.db.prepare("DELETE FROM projects WHERE id=?").run(id);
     });
@@ -69,25 +76,111 @@ export class FileRepository {
   }
 }
 
+export class TopicRepository {
+  constructor(private db: DatabaseSync) {}
+  create(
+    t: Pick<Topic, "project" | "title" | "request" | "instructions">,
+  ): Topic {
+    const id = randomUUID();
+    this.db
+      .prepare(
+        "INSERT INTO topics(id,project,title,request,instructions,state,plan,error,model,overview,created) VALUES(?,?,?,?,?,'planning','',NULL,NULL,NULL,?)",
+      )
+      .run(id, t.project, t.title, t.request, t.instructions, now());
+    return this.get(id);
+  }
+  get(id: string): Topic {
+    const t = this.db.prepare("SELECT * FROM topics WHERE id=?").get(id);
+    if (!t) throw notFound("Topic not found");
+    return t as unknown as Topic;
+  }
+  find(id: string): Topic | undefined {
+    return this.db.prepare("SELECT * FROM topics WHERE id=?").get(id) as
+      Topic | undefined;
+  }
+  list(project: string): Topic[] {
+    return this.db
+      .prepare("SELECT * FROM topics WHERE project=? ORDER BY created DESC")
+      .all(project) as unknown as Topic[];
+  }
+  update(
+    id: string,
+    fields: Partial<
+      Pick<
+        Topic,
+        "title" | "instructions" | "plan" | "error" | "model" | "overview"
+      > & { state: TopicState }
+    >,
+  ) {
+    const keys = Object.keys(fields);
+    if (!keys.length) return;
+    this.db
+      .prepare(
+        `UPDATE topics SET ${keys.map((k) => `${k}=?`).join(",")} WHERE id=?`,
+      )
+      .run(...keys.map((k) => (fields as any)[k] ?? null), id);
+  }
+  files(topic: string): TopicFileRecord[] {
+    return this.db
+      .prepare("SELECT * FROM topic_files WHERE topic=? ORDER BY ord")
+      .all(topic) as unknown as TopicFileRecord[];
+  }
+  /** Topic ids per path, for the coverage view. */
+  coverage(project: string): Map<string, string[]> {
+    const rows = this.db
+      .prepare(
+        "SELECT f.path, f.topic FROM topic_files f JOIN topics t ON t.id=f.topic WHERE t.project=? AND t.state='confirmed' ORDER BY t.created",
+      )
+      .all(project) as { path: string; topic: string }[];
+    const map = new Map<string, string[]>();
+    for (const r of rows)
+      map.set(r.path, [...(map.get(r.path) ?? []), r.topic]);
+    return map;
+  }
+  setFiles(topic: string, files: { path: string; reason: string }[]) {
+    transaction(this.db, () => {
+      this.db.prepare("DELETE FROM topic_files WHERE topic=?").run(topic);
+      const insert = this.db.prepare(
+        "INSERT INTO topic_files(topic,path,ord,reason) VALUES(?,?,?,?)",
+      );
+      files.forEach((f, i) => insert.run(topic, f.path, i, f.reason));
+    });
+  }
+  /** Removes the topic with everything generated for it and cancels its pending work. */
+  remove(id: string) {
+    transaction(this.db, () => {
+      for (const table of ["topic_files", "docs"])
+        this.db.prepare(`DELETE FROM ${table} WHERE topic=?`).run(id);
+      this.db
+        .prepare(
+          "UPDATE jobs SET state='cancelled',updated=? WHERE topic=? AND state IN ('queued','running')",
+        )
+        .run(now(), id);
+      this.db.prepare("DELETE FROM topics WHERE id=?").run(id);
+    });
+  }
+}
+
 export class DocumentRepository {
   constructor(private db: DatabaseSync) {}
-  get(project: string, path: string): DocRecord | undefined {
+  get(topic: string, path: string): DocRecord | undefined {
     return this.db
-      .prepare("SELECT * FROM docs WHERE project=? AND path=?")
-      .get(project, path) as unknown as DocRecord | undefined;
+      .prepare("SELECT * FROM docs WHERE topic=? AND path=?")
+      .get(topic, path) as unknown as DocRecord | undefined;
   }
-  listByProject(project: string): Map<string, DocRecord> {
+  listByTopic(topic: string): Map<string, DocRecord> {
     const rows = this.db
-      .prepare("SELECT * FROM docs WHERE project=?")
-      .all(project) as unknown as DocRecord[];
+      .prepare("SELECT * FROM docs WHERE topic=?")
+      .all(topic) as unknown as DocRecord[];
     return new Map(rows.map((d) => [d.path, d]));
   }
   save(doc: Omit<DocRecord, "review">) {
     this.db
       .prepare(
-        "INSERT OR REPLACE INTO docs(project,path,hash,context,version,model,markdown,payload,generated,review) VALUES(?,?,?,?,?,?,?,?,?,NULL)",
+        "INSERT OR REPLACE INTO docs(topic,project,path,hash,context,version,model,markdown,payload,generated,review) VALUES(?,?,?,?,?,?,?,?,?,?,NULL)",
       )
       .run(
+        doc.topic,
         doc.project,
         doc.path,
         doc.hash,
@@ -100,35 +193,50 @@ export class DocumentRepository {
       );
   }
   /** Only attaches the review if the doc was not regenerated meanwhile. */
-  saveReview(project: string, path: string, generated: string, review: string) {
+  saveReview(topic: string, path: string, generated: string, review: string) {
     this.db
       .prepare(
-        "UPDATE docs SET review=? WHERE project=? AND path=? AND generated=?",
+        "UPDATE docs SET review=? WHERE topic=? AND path=? AND generated=?",
       )
-      .run(review, project, path, generated);
+      .run(review, topic, path, generated);
   }
 }
 
 export class JobRepository {
   constructor(private db: DatabaseSync) {}
   /** Returns 1 if queued, 0 if an identical job is already active. */
-  enqueue(project: string, path: string, kind: JobKind = "generate"): number {
+  enqueue(
+    project: string,
+    topic: string,
+    path: string,
+    kind: JobKind = "generate",
+  ): number {
     const t = now();
     const result = this.db
       .prepare(
-        "INSERT OR IGNORE INTO jobs(id,project,path,kind,state,created,updated) VALUES(?,?,?,?,'queued',?,?)",
+        "INSERT OR IGNORE INTO jobs(id,project,topic,path,kind,state,created,updated) VALUES(?,?,?,?,?,'queued',?,?)",
       )
-      .run(randomUUID(), project, path, kind, t, t);
+      .run(randomUUID(), project, topic, path, kind, t, t);
     return Number(result.changes);
   }
   get(id: string): Job | undefined {
     return this.db.prepare("SELECT * FROM jobs WHERE id=?").get(id) as
       Job | undefined;
   }
-  recent(limit = 200): Job[] {
+  recent(limit = 200): (Job & { topicTitle: string | null })[] {
     return this.db
-      .prepare("SELECT * FROM jobs ORDER BY created DESC LIMIT ?")
-      .all(limit) as unknown as Job[];
+      .prepare(
+        "SELECT j.*, t.title AS topicTitle FROM jobs j LEFT JOIN topics t ON t.id=j.topic ORDER BY j.created DESC LIMIT ?",
+      )
+      .all(limit) as unknown as (Job & { topicTitle: string | null })[];
+  }
+  /** Jobs of one topic that have not finished yet. */
+  pending(topic: string): Job[] {
+    return this.db
+      .prepare(
+        "SELECT * FROM jobs WHERE topic=? AND state IN ('queued','running')",
+      )
+      .all(topic) as unknown as Job[];
   }
   /** Atomically claims the oldest queued job. */
   claimNext(): Job | undefined {

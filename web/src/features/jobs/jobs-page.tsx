@@ -9,13 +9,20 @@ import {
   Loader2,
   X,
 } from "lucide-react";
-import type { JobState, JobView } from "@shared/api";
+import type { JobKind, JobState, JobView } from "@shared/api";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PageHeader } from "@/components/layout/page-header";
 import { useCancelJob, useJobs, useProjects } from "@/lib/queries";
 import { timeAgo } from "@/lib/format";
 import { cn } from "@/lib/utils";
+
+const kindLabel: Record<JobKind, string> = {
+  plan: "规划主题",
+  generate: "生成说明",
+  review: "复查",
+  overview: "链路导读",
+};
 
 const states: Record<
   JobState,
@@ -144,15 +151,24 @@ function JobRow({ job, projectName }: { job: JobView; projectName?: string }) {
       />
       <div className="min-w-0 flex-1">
         <Link
-          to={`/projects/${job.project}?file=${encodeURIComponent(job.path)}`}
-          className="block truncate font-mono text-[13px] hover:underline"
+          to={`/projects/${job.project}?topic=${encodeURIComponent(job.topic)}${job.path ? `&file=${encodeURIComponent(job.path)}` : ""}`}
+          className={cn(
+            "block truncate text-[13px] hover:underline",
+            job.path && "font-mono",
+          )}
         >
-          {job.path}
+          {job.path || (job.topicTitle ?? "已删除的主题")}
         </Link>
         <p className="mt-0.5 flex flex-wrap gap-x-2 text-xs text-subtle-foreground">
           <span>{projectName ?? "已移除的项目"}</span>
+          {job.path && job.topicTitle && (
+            <>
+              <span>·</span>
+              <span className="max-w-[16rem] truncate">{job.topicTitle}</span>
+            </>
+          )}
           <span>·</span>
-          <span>{job.kind === "review" ? "复查" : "生成"}</span>
+          <span>{kindLabel[job.kind]}</span>
           <span>·</span>
           <span>{state.label}</span>
           <span>·</span>

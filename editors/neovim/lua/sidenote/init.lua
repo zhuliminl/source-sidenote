@@ -22,14 +22,23 @@ local function show(source_win, path, result)
     vim.keymap.set('n', 'q', function() if vim.api.nvim_win_is_valid(panel.win) then vim.api.nvim_win_close(panel.win, true) end end, {buffer=panel.buf})
   end
   local text = result.markdown or ''
-  if result.status == 'missing' then text = '# 正在生成说明\n\n稍后再次执行 :Sidenote，或在管理页查看任务状态。' end
-  if result.status == 'stale' then text = '> 说明已过期，使用 :SidenoteRefresh 更新。\n\n' .. text end
+  if result.status == 'missing' then
+    text = result.topic and '# 说明尚未生成\n\n这个主题的生成任务可能仍在进行，可在管理页查看。'
+      or '# 还没有主题覆盖这个文件\n\n在管理页创建一个主题，AI 会挑选相关文件并生成说明。'
+    if result.url then text = text .. '\n\n' .. result.url end
+  end
+  if result.status == 'stale' then text = '> 源码、依赖或模型已变化，说明可能过期；可在管理页重新生成。\n\n' .. text end
+  if result.topic then
+    local others = #(result.topics or {}) > 1 and ('（共 ' .. #result.topics .. ' 个主题，:SidenoteTopic 切换）') or ''
+    text = '> 主题：' .. result.topic.title .. others .. '\n\n' .. text
+  end
   vim.bo[panel.buf].modifiable = true
   vim.api.nvim_buf_set_lines(panel.buf, 0, -1, false, vim.split(text, '\n', {plain=true}))
   vim.bo[panel.buf].modifiable = false
   vim.api.nvim_set_current_win(source_win)
 end
-function M.open(refresh)
+local last = {}
+function M.open(topic)
   local win = vim.api.nvim_get_current_win()
   local path = vim.api.nvim_buf_get_name(0)
   if vim.bo.buftype ~= '' or path == '' then return vim.notify('请在源码文件中执行 Sidenote', vim.log.levels.WARN) end
@@ -37,9 +46,9 @@ function M.open(refresh)
   generation = generation + 1
   local ticket = generation
   local cmd = vim.deepcopy(options.command)
-  show(win, path, {markdown='# 正在读取说明\n\n首次生成可能需要等待模型响应。'})
-  vim.list_extend(cmd, {'explain', path, '--wait'})
-  if refresh then table.insert(cmd, '--refresh') end
+  show(win, path, {markdown='# 正在读取说明'})
+  vim.list_extend(cmd, {'explain', path})
+  if topic then vim.list_extend(cmd, {'--topic', topic}) end
   vim.system(cmd, {text=true}, function(result)
     vim.schedule(function()
       if ticket ~= generation or not vim.api.nvim_win_is_valid(win) then return end
@@ -50,14 +59,21 @@ function M.open(refresh)
       end
       local ok, data = pcall(vim.json.decode, result.stdout)
       if not ok then return vim.notify('无法解析 Sidenote 响应', vim.log.levels.ERROR) end
+      last[path] = data.topics
       show(win, path, data)
     end)
   end)
 end
 function M.setup(opts)
   options = vim.tbl_deep_extend('force', options, opts or {})
-  vim.api.nvim_create_user_command('Sidenote', function() M.open(false) end, {})
-  vim.api.nvim_create_user_command('SidenoteRefresh', function() M.open(true) end, {})
+  vim.api.nvim_create_user_command('Sidenote', function() M.open(nil) end, {})
+  vim.api.nvim_create_user_command('SidenoteTopic', function()
+    local topics = last[vim.api.nvim_buf_get_name(0)]
+    if not topics or #topics == 0 then return vim.notify('请先执行 :Sidenote；该文件还没有主题', vim.log.levels.WARN) end
+    vim.ui.select(topics, {prompt='选择主题', format_item=function(t) return t.title end}, function(choice)
+      if choice then M.open(choice.id) end
+    end)
+  end, {})
   vim.api.nvim_create_user_command('SidenoteClose', function()
     for _,panel in pairs(panels) do if vim.api.nvim_win_is_valid(panel.win) then vim.api.nvim_win_close(panel.win,true) end end
     panels = {}

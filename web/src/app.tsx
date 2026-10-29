@@ -6,6 +6,7 @@ import { AppShell } from "@/components/layout/app-shell";
 import { HomePage } from "@/features/home/home-page";
 import { ProjectPage } from "@/features/project/project-page";
 import { JobsPage } from "@/features/jobs/jobs-page";
+import { PromptsPage } from "@/features/prompts/prompts-page";
 import { queryClient } from "@/lib/queries";
 
 export function App() {
@@ -18,6 +19,7 @@ export function App() {
               <Route index element={<HomePage />} />
               <Route path="projects/:projectId" element={<ProjectPage />} />
               <Route path="jobs" element={<JobsPage />} />
+              <Route path="prompts" element={<PromptsPage />} />
               <Route path="*" element={<HomePage />} />
             </Route>
           </Routes>

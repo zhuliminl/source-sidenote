@@ -1,4 +1,4 @@
-import type { JobKind, JobState, Review } from "../shared/api.js";
+import type { JobKind, JobState, Review, TopicState } from "../shared/api.js";
 
 export interface Project {
   id: string;
@@ -13,8 +13,31 @@ export interface SourceFile {
   bytes: number;
 }
 
-/** A persisted explanation plus the fingerprints it was generated against. */
+export interface Topic {
+  id: string;
+  project: string;
+  title: string;
+  request: string;
+  instructions: string;
+  state: TopicState;
+  plan: string;
+  error: string | null;
+  /** Model that generated the explanations (set on confirm). */
+  model: string | null;
+  overview: string | null;
+  created: string;
+}
+
+export interface TopicFileRecord {
+  topic: string;
+  path: string;
+  ord: number;
+  reason: string;
+}
+
+/** A persisted explanation (one file within one topic) plus the fingerprints it was generated against. */
 export interface DocRecord {
+  topic: string;
   project: string;
   path: string;
   hash: string;
@@ -30,6 +53,8 @@ export interface DocRecord {
 export interface Job {
   id: string;
   project: string;
+  /** Empty for jobs that are not tied to a topic. */
+  topic: string;
   path: string;
   kind: JobKind;
   state: JobState;
@@ -44,7 +69,7 @@ export interface ModelConfig {
   model: string;
   apiKey: string;
   concurrency: number;
-  maxFilesPerRun: number;
+  maxFilesPerTopic: number;
   timeoutMs: number;
 }
 
@@ -53,18 +78,18 @@ export const defaultConfig: ModelConfig = {
   model: "",
   apiKey: "",
   concurrency: 2,
-  maxFilesPerRun: 100,
+  maxFilesPerTopic: 15,
   timeoutMs: 60000,
 };
 
 export const configLimits = {
   concurrency: [1, 4],
-  maxFilesPerRun: [1, 1000],
+  maxFilesPerTopic: [1, 60],
   timeoutMs: [1000, 180000],
 } as const;
 
 /** Bump when prompts or the explanation schema change; older docs become stale. */
-export const PROMPT_VERSION = "file-explanation-v1";
+export const PROMPT_VERSION = "topic-explanation-v1";
 
 export const MAX_SOURCE_BYTES = 128 * 1024;
 

@@ -4,13 +4,15 @@ import {
   CircleAlert,
   Copy,
   FileQuestion,
+  Layers,
   Loader2,
+  Plus,
   RefreshCw,
   ShieldCheck,
   Sparkles,
 } from "lucide-react";
 import { toast } from "sonner";
-import type { DocumentView, JobView } from "@shared/api";
+import type { DocumentView, JobView, TopicView } from "@shared/api";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -19,32 +21,155 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { InlineMarkdown } from "@/components/inline-markdown";
-import { useDocument, useJobs, useRun } from "@/lib/queries";
+import {
+  useDocument,
+  useFiles,
+  useJobs,
+  useRunFile,
+  useTopics,
+} from "@/lib/queries";
 import { timeAgo } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import type { LineRange } from "./code-viewer";
 
 type Doc = Exclude<DocumentView, { status: "missing" }>;
 
-/** The explanation for one file, designed to sit beside its source. */
+/** The explanation for one file within the current topic, designed to sit beside its source. */
 export function ExplanationPanel({
   projectId,
+  topic,
+  path,
+  focus,
+  onFocus,
+  onNavigate,
+  onSelectTopic,
+  onCreateTopic,
+}: {
+  projectId: string;
+  topic: TopicView | null;
+  path: string;
+  focus: LineRange | null;
+  onFocus: (range: LineRange | null) => void;
+  onNavigate: (path: string) => void;
+  onSelectTopic: (topic: string) => void;
+  onCreateTopic: () => void;
+}) {
+  const inTopic =
+    topic?.state === "confirmed" && topic.entries.some((e) => e.path === path);
+  if (!inTopic)
+    return (
+      <div className="flex h-full min-h-0 flex-col">
+        <div className="flex h-11 shrink-0 items-center border-b px-4">
+          <span className="text-sm font-medium">说明</span>
+        </div>
+        <TopicChooser
+          projectId={projectId}
+          current={topic}
+          path={path}
+          onSelectTopic={onSelectTopic}
+          onCreateTopic={onCreateTopic}
+        />
+      </div>
+    );
+  return (
+    <TopicExplanation
+      topic={topic!}
+      path={path}
+      focus={focus}
+      onFocus={onFocus}
+      onNavigate={onNavigate}
+    />
+  );
+}
+
+/** A file can be explained by several topics, or none yet. */
+function TopicChooser({
+  projectId,
+  current,
+  path,
+  onSelectTopic,
+  onCreateTopic,
+}: {
+  projectId: string;
+  current: TopicView | null;
+  path: string;
+  onSelectTopic: (topic: string) => void;
+  onCreateTopic: () => void;
+}) {
+  const files = useFiles(projectId);
+  const topics = useTopics(projectId);
+  const ids = files.data?.find((f) => f.path === path)?.topics ?? [];
+  const covering = (topics.data ?? []).filter(
+    (t) => ids.includes(t.id) && t.id !== current?.id,
+  );
+  const pending =
+    current && current.state !== "confirmed"
+      ? current.entries.some((e) => e.path === path)
+      : false;
+  return (
+    <div className="flex flex-col items-center px-6 pt-16 text-center">
+      <Layers className="size-5 text-subtle-foreground" />
+      <p className="mt-4 text-sm font-medium">
+        {pending
+          ? "主题尚未确认"
+          : current
+            ? "这个文件不在当前主题中"
+            : ids.length
+              ? "选择一个主题查看说明"
+              : "还没有主题覆盖这个文件"}
+      </p>
+      <p className="mt-1 max-w-xs text-xs leading-5 text-muted-foreground">
+        {pending
+          ? "确认文件清单后才会生成说明。"
+          : "说明按主题生成：同一个文件在不同主题里，会围绕不同的链路来解释。"}
+      </p>
+      {covering.length > 0 && (
+        <ul className="mt-5 w-full max-w-xs space-y-1">
+          {covering.map((t) => (
+            <li key={t.id}>
+              <button
+                type="button"
+                onClick={() => onSelectTopic(t.id)}
+                className="flex w-full items-center gap-2 rounded-lg border px-3 py-2 text-left text-sm transition-colors hover:bg-accent"
+              >
+                <Layers className="size-3.5 shrink-0 text-muted-foreground" />
+                <span className="truncate">{t.title}</span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      <Button
+        size="sm"
+        variant="outline"
+        className="mt-5"
+        onClick={onCreateTopic}
+      >
+        <Plus />
+        新建主题
+      </Button>
+    </div>
+  );
+}
+
+function TopicExplanation({
+  topic,
   path,
   focus,
   onFocus,
   onNavigate,
 }: {
-  projectId: string;
+  topic: TopicView;
   path: string;
   focus: LineRange | null;
   onFocus: (range: LineRange | null) => void;
   onNavigate: (path: string) => void;
 }) {
-  const doc = useDocument(projectId, path);
+  const doc = useDocument(topic.id, path);
   const jobs = useJobs();
-  const run = useRun();
+  const run = useRunFile();
   const forFile = jobs.data?.filter(
-    (j) => j.project === projectId && j.path === path,
+    (j) => j.topic === topic.id && j.path === path,
   );
   const activeJob = forFile?.find(
     (j) => j.state === "queued" || j.state === "running",
@@ -52,9 +177,10 @@ export function ExplanationPanel({
   const lastJob = forFile?.[0];
   const busy = Boolean(activeJob) || run.isPending;
   const generate = () =>
-    run.mutate({ project: projectId, kind: "generate", path });
-  const review = () => run.mutate({ project: projectId, kind: "review", path });
+    run.mutate({ topic: topic.id, path, kind: "generate" });
+  const review = () => run.mutate({ topic: topic.id, path, kind: "review" });
   const data = doc.data?.status === "missing" ? undefined : doc.data;
+  const reason = topic.entries.find((e) => e.path === path)?.reason;
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -90,6 +216,15 @@ export function ExplanationPanel({
         </div>
       }
       <div className="min-h-0 flex-1 overflow-y-auto px-5 pt-5 pb-16 scrollbar-thin">
+        {reason && (
+          <p className="mb-4 flex gap-2 text-xs leading-5 text-subtle-foreground">
+            <Layers className="mt-0.5 size-3.5 shrink-0" />
+            <span>
+              <span className="text-muted-foreground">{topic.title}</span> ·{" "}
+              {reason}
+            </span>
+          </p>
+        )}
         {doc.isPending ? (
           <PanelSkeleton />
         ) : doc.isError ? (

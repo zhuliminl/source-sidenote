@@ -12,10 +12,12 @@ export class ConfigStore {
   get(): ModelConfig {
     if (!this.cached) {
       try {
-        this.cached = {
-          ...defaultConfig,
-          ...JSON.parse(readFileSync(this.path, "utf8")),
-        };
+        const stored = JSON.parse(readFileSync(this.path, "utf8"));
+        // Keep only known keys so settings retired by upgrades do not leak into views.
+        this.cached = { ...defaultConfig };
+        for (const key of Object.keys(defaultConfig) as (keyof ModelConfig)[])
+          if (stored[key] !== undefined)
+            (this.cached as any)[key] = stored[key];
       } catch {
         this.cached = { ...defaultConfig };
       }

@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from "react";
 import { useNavigate } from "react-router";
-import { FolderSync, ShieldCheck, Sparkles, Trash2 } from "lucide-react";
+import { FolderSync, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import type { ProjectSummary } from "@shared/api";
 import {
@@ -20,7 +20,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { useRemoveProject, useRescan, useRun } from "@/lib/queries";
+import { useRemoveProject, useRescan } from "@/lib/queries";
 
 /** Project-level commands, shared by the sidebar rows and the project header. */
 export function ProjectActionsMenu({
@@ -32,7 +32,6 @@ export function ProjectActionsMenu({
   children: ReactNode;
   align?: "start" | "end";
 }) {
-  const run = useRun();
   const rescan = useRescan();
   const remove = useRemoveProject();
   const navigate = useNavigate();
@@ -43,20 +42,6 @@ export function ProjectActionsMenu({
       <DropdownMenu modal={false}>
         <DropdownMenuTrigger asChild>{children}</DropdownMenuTrigger>
         <DropdownMenuContent align={align} className="w-56">
-          <DropdownMenuItem
-            onSelect={() =>
-              run.mutate({ project: project.id, kind: "generate" })
-            }
-          >
-            <Sparkles />
-            更新缺失或过期的说明
-          </DropdownMenuItem>
-          <DropdownMenuItem
-            onSelect={() => run.mutate({ project: project.id, kind: "review" })}
-          >
-            <ShieldCheck />
-            复查当前说明
-          </DropdownMenuItem>
           <DropdownMenuItem onSelect={() => rescan.mutate(project.id)}>
             <FolderSync />
             重新扫描文件
@@ -76,7 +61,7 @@ export function ProjectActionsMenu({
           <AlertDialogHeader>
             <AlertDialogTitle>移除“{project.name}”？</AlertDialogTitle>
             <AlertDialogDescription>
-              将删除这个项目已生成的说明与任务记录。磁盘上的源码不会被修改。
+              将删除这个项目的全部主题、说明与任务记录。磁盘上的源码不会被修改。
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

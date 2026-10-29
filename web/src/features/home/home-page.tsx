@@ -68,7 +68,7 @@ export function HomePage() {
             type="submit"
             size="icon"
             disabled={!root.trim() || add.isPending}
-            aria-label="添加项目并生成说明"
+            aria-label="添加项目"
             className="size-9 disabled:bg-muted-foreground/25 disabled:opacity-100"
           >
             {add.isPending ? (
