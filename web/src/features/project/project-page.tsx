@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useParams, useSearchParams } from "react-router";
 import { useDefaultLayout } from "react-resizable-panels";
 import {
@@ -43,6 +43,7 @@ import { ExplanationPanel } from "./explanation-panel";
 import { ProjectOverview, topicStateLabel } from "./project-overview";
 import { TopicView } from "../topics/topic-view";
 import { TopicMinimap } from "../topics/topic-minimap";
+import { useMapOverlap } from "../topics/map-rect";
 import { CreateTopicDialog } from "../topics/create-topic-dialog";
 
 function parseLines(value: string | null): LineRange | null {
@@ -150,7 +151,7 @@ function Reader({ project }: { project: ProjectSummary }) {
   }, [missingTopic]);
 
   const tree = (className?: string) => (
-    <div className={cn("flex min-h-0 flex-col", className)}>
+    <TreeColumn className={className}>
       <FileTree
         projectId={project.id}
         topic={topic}
@@ -158,7 +159,7 @@ function Reader({ project }: { project: ProjectSummary }) {
         onSelect={state.select}
         className="min-h-0 flex-1"
       />
-    </div>
+    </TreeColumn>
   );
   const code = (file: string) => (
     <CodeViewer
@@ -314,6 +315,30 @@ function Reader({ project }: { project: ProjectSummary }) {
         onCreated={(id) => state.selectTopic(id, false)}
       />
     </ReaderLinkProvider>
+  );
+}
+
+/** The file tree's column; its bottom edge moves up to clear the floating topic map. */
+function TreeColumn({
+  className,
+  children,
+}: {
+  className?: string;
+  children: ReactNode;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  const overlap = useMapOverlap(ref);
+  return (
+    <div
+      ref={ref}
+      style={{ paddingBottom: overlap }}
+      className={cn(
+        "flex min-h-0 flex-col transition-[padding] duration-150",
+        className,
+      )}
+    >
+      {children}
+    </div>
   );
 }
 

@@ -1,4 +1,11 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   ChevronDown,
   ChevronLeft,
@@ -20,6 +27,7 @@ import { Diagram } from "@/components/diagram";
 import { InlineMarkdown } from "@/components/inline-markdown";
 import { FileHint } from "@/components/file-hint";
 import { TopicGraph } from "./topic-graph";
+import { publishMapRect } from "./map-rect";
 import { splitPath } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
@@ -221,6 +229,24 @@ export function TopicMinimap({
     defaultSize[mode],
     float.spot,
   );
+
+  // Tell panels underneath where the map is, so they can end above it instead of being covered.
+  // Computed from the stored position and size, not measured, so the open animation does not jitter it.
+  const { spot } = float;
+  const { w, h } = size.size;
+  useLayoutEffect(() => {
+    const el = float.el.current;
+    const width = open ? w : (el?.offsetWidth ?? 0);
+    const height = open ? h : (el?.offsetHeight ?? 0);
+    const bottom = innerHeight - spot.bottom;
+    publishMapRect({
+      left: spot.left,
+      right: spot.left + width,
+      top: bottom - height,
+      bottom,
+    });
+  }, [open, spot, w, h, float.el]);
+  useEffect(() => () => publishMapRect(null), []);
   useEffect(() => {
     const id = requestAnimationFrame(refit);
     return () => cancelAnimationFrame(id);
