@@ -184,14 +184,6 @@
     transform: scale(1);
   }
 }
-@keyframes sidenote-ripple {
-  0% {
-    box-shadow: 0 0 0 0 rgb(16 185 129 / 0.45);
-  }
-  100% {
-    box-shadow: 0 0 0 7px rgb(16 185 129 / 0);
-  }
-}
 @keyframes sidenote-svg-ripple {
   0% {
     transform: scale(1);
@@ -203,9 +195,28 @@
   }
 }
 .pulse {
-  animation:
-    sidenote-pop 0.45s ease-out,
-    sidenote-ripple 0.75s ease-out;
+  animation: sidenote-pop 0.45s ease-out;
+}
+/* Material-style ink: a circle grows from the touch point to fill the row, then fades. */
+@keyframes sidenote-ink {
+  0% {
+    transform: scale(0);
+    opacity: 1;
+  }
+  60% {
+    opacity: 0.7;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 0;
+  }
+}
+.ripple-ink {
+  position: absolute;
+  border-radius: 9999px;
+  pointer-events: none;
+  background: rgb(16 185 129 / 0.28);
+  animation: sidenote-ink 0.65s cubic-bezier(0.2, 0, 0, 1) forwards;
 }
 .svg-pulse {
   transform-box: fill-box;
@@ -220,7 +231,8 @@
 @media (prefers-reduced-motion: reduce) {
   .pulse,
   .svg-pulse,
-  .svg-ripple {
+  .svg-ripple,
+  .ripple-ink {
     animation: none;
   }
 }

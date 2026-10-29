@@ -354,7 +354,7 @@ export function TopicGraph({
                   width={p.w}
                   height={NODE_H}
                   rx={8}
-                  className="svg-ripple fill-none stroke-emerald-500"
+                  className="svg-ripple fill-none stroke-foreground"
                   strokeWidth={2}
                 />
               )}
@@ -365,7 +365,7 @@ export function TopicGraph({
                   rx={8}
                   className={cn(
                     isHere
-                      ? "fill-emerald-600 stroke-emerald-600"
+                      ? "fill-foreground stroke-foreground"
                       : seen
                         ? "fill-accent stroke-muted-foreground/50"
                         : "fill-popover stroke-border",
@@ -379,7 +379,7 @@ export function TopicGraph({
                   textAnchor="middle"
                   className={cn(
                     "text-[11.5px]",
-                    isHere ? "fill-white font-medium" : "fill-foreground",
+                    isHere ? "fill-background font-medium" : "fill-foreground",
                   )}
                 >
                   {short(s.label)}

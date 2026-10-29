@@ -606,8 +606,7 @@ function Station({
           onClick={() => onSelect(station.path)}
           className={cn(
             "group flex w-full items-stretch gap-2.5 rounded-lg px-1.5 text-left transition-colors hover:bg-accent/70",
-            here &&
-              "bg-emerald-500/10 text-emerald-700 hover:bg-emerald-500/10 dark:text-emerald-400",
+            here && "bg-accent hover:bg-accent",
             pulse && "pulse",
           )}
         >
@@ -624,7 +623,7 @@ function Station({
               className={cn(
                 "relative z-10 my-auto rounded-full",
                 here
-                  ? "size-2.5 bg-emerald-500 ring-4 ring-emerald-500/20"
+                  ? "size-2.5 bg-foreground ring-4 ring-foreground/15"
                   : visited
                     ? "size-2 bg-foreground/55"
                     : "size-2 border border-subtle-foreground/70 bg-sidebar",
@@ -645,7 +644,7 @@ function Station({
             </span>
           </span>
           {here && (
-            <span className="my-auto shrink-0 rounded-full bg-emerald-600 px-1.5 py-px text-[10px] text-white">
+            <span className="my-auto shrink-0 rounded-full bg-foreground px-1.5 py-px text-[10px] text-background">
               当前
             </span>
           )}

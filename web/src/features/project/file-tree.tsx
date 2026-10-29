@@ -1,5 +1,5 @@
 import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
-import { revealCentered } from "@/hooks/use-pulse";
+import { revealCentered, ripple } from "@/hooks/use-pulse";
 import { ChevronRight, Search } from "lucide-react";
 import type { FileEntry, FileStatus, TopicView } from "@shared/api";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -204,6 +204,12 @@ export function FileTree({
 
   // Point at the newly active file: scroll it to the middle if it is out of view, then pulse it.
   const rows = useRef<HTMLDivElement>(null);
+  const lastPress = useRef<{
+    path: string;
+    x: number;
+    y: number;
+    at: number;
+  } | null>(null);
   useEffect(() => {
     if (!selected) return;
     let timer: ReturnType<typeof setTimeout> | undefined;
@@ -213,6 +219,10 @@ export function FileTree({
       );
       if (!el) return;
       revealCentered(el);
+      // Spread from where the reader clicked, if the change came from a click on this row.
+      const press = lastPress.current;
+      const fresh = press?.path === selected && Date.now() - press.at < 1500;
+      ripple(el, fresh ? press : undefined);
       el.classList.remove("pulse");
       void el.offsetWidth; // restart the animation
       el.classList.add("pulse");
@@ -303,6 +313,18 @@ export function FileTree({
 
       <div
         ref={rows}
+        onPointerDown={(e) => {
+          const path = (e.target as HTMLElement).closest<HTMLElement>(
+            "[data-path]",
+          )?.dataset.path;
+          if (path)
+            lastPress.current = {
+              path,
+              x: e.clientX,
+              y: e.clientY,
+              at: Date.now(),
+            };
+        }}
         role="tree"
         aria-label="项目文件"
         className="min-h-0 flex-1 overflow-y-auto px-1.5 pb-4 text-[13px] scrollbar-thin"
@@ -405,7 +427,7 @@ function OrderItem({
         onClick={() => onSelect(path)}
         title={hint ? undefined : `${path} · ${fileStatusLabel[status]}`}
         className={cn(
-          "flex w-full items-start gap-2 rounded-md px-2 py-1.5 text-left transition-colors hover:bg-accent/70",
+          "relative flex w-full items-start gap-2 overflow-hidden rounded-md px-2 py-1.5 text-left transition-colors hover:bg-accent/70",
           selected &&
             "bg-emerald-500/10 text-emerald-700 hover:bg-emerald-500/10 dark:text-emerald-400",
         )}
@@ -469,7 +491,7 @@ function Nodes({
                 title={hint ? undefined : `${node.path} · ${m.label}`}
                 style={indent}
                 className={cn(
-                  "flex h-7 w-full items-center gap-2 rounded-md pr-2 text-left transition-colors hover:bg-accent/70",
+                  "relative flex h-7 w-full items-center gap-2 overflow-hidden rounded-md pr-2 text-left transition-colors hover:bg-accent/70",
                   props.dimUnmarked &&
                     !highlighted(m) &&
                     "text-subtle-foreground",
@@ -540,7 +562,7 @@ function SearchResult({
         data-path={file.path}
         onClick={() => onSelect(file.path)}
         className={cn(
-          "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left transition-colors hover:bg-accent/70",
+          "relative flex w-full items-center gap-2 overflow-hidden rounded-md px-2 py-1.5 text-left transition-colors hover:bg-accent/70",
           selected &&
             "bg-emerald-500/10 text-emerald-700 hover:bg-emerald-500/10 dark:text-emerald-400",
         )}
