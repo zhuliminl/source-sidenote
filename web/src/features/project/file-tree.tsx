@@ -41,6 +41,17 @@ function markOf(file: FileEntry, topic: Map<string, FileStatus> | null): Mark {
 
 const highlighted = (m: Mark) => m.status !== "none";
 
+/** Inside a topic: reading order, the topic's files as folders ("目录", the default), or everything. */
+type TreeView = "order" | "tree" | "all";
+const VIEW_KEY = "sidenote-tree-view";
+function readView(): TreeView {
+  try {
+    const v = localStorage.getItem(VIEW_KEY);
+    if (v === "order" || v === "tree" || v === "all") return v;
+  } catch {}
+  return "tree";
+}
+
 /** Prefers the file's own explanation, then the walkthrough's station name and the planner's reason. */
 function hintsOf(topic: TopicView): Map<string, Hint> {
   const labels = new Map(topic.overview?.steps.map((s) => [s.path, s.label]));
@@ -138,10 +149,16 @@ export function FileTree({
   className?: string;
 }) {
   const files = useFiles(projectId);
+  const choose = (next: TreeView) => {
+    setPick(next);
+    try {
+      localStorage.setItem(VIEW_KEY, next);
+    } catch {}
+  };
   const [query, setQuery] = useState("");
-  // Inside a topic: reading order by default; the directory view can still show everything.
-  const [view, setView] = useState<"order" | "tree">("order");
-  const [onlyMarked, setOnlyMarked] = useState(true);
+  const [pick, setPick] = useState<TreeView>(readView);
+  const view = pick === "order" ? "order" : "tree";
+  const onlyMarked = pick !== "all";
   const deferred = useDeferredValue(query.trim().toLowerCase());
   const [expanded, setExpanded] = useState<Set<string> | null>(null);
 
@@ -281,7 +298,7 @@ export function FileTree({
               <button
                 type="button"
                 aria-pressed={view === "order"}
-                onClick={() => setView("order")}
+                onClick={() => choose("order")}
                 className={chip(view === "order")}
               >
                 阅读顺序
@@ -290,8 +307,7 @@ export function FileTree({
                 type="button"
                 aria-pressed={view === "tree" && onlyMarked}
                 onClick={() => {
-                  setView("tree");
-                  setOnlyMarked(true);
+                  choose("tree");
                 }}
                 className={chip(view === "tree" && onlyMarked)}
               >
@@ -301,8 +317,7 @@ export function FileTree({
                 type="button"
                 aria-pressed={view === "tree" && !onlyMarked}
                 onClick={() => {
-                  setView("tree");
-                  setOnlyMarked(false);
+                  choose("all");
                 }}
                 className={chip(view === "tree" && !onlyMarked)}
               >

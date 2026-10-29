@@ -37,6 +37,7 @@ import {
   useLinkSetters,
   type LineRange,
 } from "./reader-link";
+import { scrollParent } from "@/hooks/reveal";
 
 type Doc = Exclude<DocumentView, { status: "missing" }>;
 
@@ -221,7 +222,8 @@ function TopicExplanation({
           </div>
         </div>
       }
-      <div className="min-h-0 flex-1 overflow-y-auto px-5 pt-5 pb-16 scrollbar-thin">
+      {/* Extra room at the bottom so even the last evidence entries can line up with their code. */}
+      <div className="min-h-0 flex-1 overflow-y-auto px-5 pt-5 pb-[45vh] scrollbar-thin">
         {reason && (
           <p className="mb-4 flex gap-2 text-xs leading-5 text-subtle-foreground">
             <Layers className="mt-0.5 size-3.5 shrink-0" />
@@ -293,28 +295,46 @@ function Body({
   const hoverLine = useHoverLine();
   const { setPeek } = useLinkSetters();
   const links = e.diagramLinks ?? [];
-  // The line the reader points at in the code: hovered, else a single clicked line.
-  const line =
-    hoverLine ?? (focus && focus.start === focus.end ? focus.start : null);
-  const matched = narrowest(e.evidence, line);
+  // What the reader points at in the code: the hovered line, else the focused block.
+  const line = hoverLine ?? focus?.start ?? null;
+  const matched =
+    hoverLine !== null
+      ? narrowest(e.evidence, hoverLine)
+      : e.evidence.find(
+          (ev) => focus && ev.start === focus.start && ev.end === focus.end,
+        );
   const node = narrowest(links, line);
   const list = useRef<HTMLUListElement>(null);
   // Do not leave code highlighted after switching files mid-hover.
   useEffect(() => () => setPeek(null), [setPeek]);
 
-  // Follow the code: scroll the matching evidence into view once the pointer settles.
+  // Strict alignment: while the mouse is on a block of code, scroll this panel so the matching
+  // evidence starts at the same height as the block, and keep it there as the code scrolls.
+  const following = hoverLine !== null ? matched : undefined;
   useEffect(() => {
-    if (!matched) return;
-    const i = e.evidence.indexOf(matched);
-    const t = setTimeout(
-      () =>
-        list.current
-          ?.querySelector(`[data-evidence="${i}"]`)
-          ?.scrollIntoView({ block: "nearest", behavior: "smooth" }),
-      hoverLine === null ? 0 : 180,
-    );
-    return () => clearTimeout(t);
-  }, [matched, e.evidence, hoverLine]);
+    if (!following) return;
+    const i = e.evidence.indexOf(following);
+    const code = document.querySelector<HTMLElement>("[data-code-scroll]");
+    const align = (behavior: ScrollBehavior) => {
+      const entry = list.current?.querySelector(`[data-evidence="${i}"]`);
+      const first = code?.querySelector(`[data-line="${following.start}"]`);
+      const panel = entry && scrollParent(entry);
+      if (!entry || !first || !code || !panel) return;
+      // A block that starts above the visible code lines up with the top of the code instead.
+      const top = Math.max(
+        first.getBoundingClientRect().top,
+        code.getBoundingClientRect().top,
+      );
+      panel.scrollTo({
+        top: panel.scrollTop + entry.getBoundingClientRect().top - top,
+        behavior,
+      });
+    };
+    align("smooth");
+    const onScroll = () => align("auto");
+    code?.addEventListener("scroll", onScroll, { passive: true });
+    return () => code?.removeEventListener("scroll", onScroll);
+  }, [following, e.evidence]);
 
   const rangeOf = (id: string | null) => {
     const l = id ? links.find((x) => x.node === id) : undefined;
@@ -389,7 +409,11 @@ function Body({
             const active = focus?.start === ev.start && focus.end === ev.end;
             const linked = ev === matched;
             return (
-              <li key={i} data-evidence={i}>
+              <li
+                key={i}
+                data-evidence={i}
+                data-evidence-range={`${ev.start}-${ev.end}`}
+              >
                 <button
                   type="button"
                   onClick={() =>

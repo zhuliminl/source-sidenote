@@ -1,9 +1,15 @@
-/** Scrolls an element to the middle of its scroll container, but only if it is not fully visible. */
-export function revealCentered(el: Element | null | undefined) {
-  if (!el) return;
+/** The nearest ancestor that scrolls vertically. */
+export function scrollParent(el: Element): HTMLElement | null {
   let box = el.parentElement;
   while (box && !/(auto|scroll)/.test(getComputedStyle(box).overflowY))
     box = box.parentElement;
+  return box;
+}
+
+/** Scrolls an element to the middle of its scroll container, but only if it is not fully visible. */
+export function revealCentered(el: Element | null | undefined) {
+  if (!el) return;
+  const box = scrollParent(el);
   if (!box) return;
   const outer = box.getBoundingClientRect();
   const inner = el.getBoundingClientRect();

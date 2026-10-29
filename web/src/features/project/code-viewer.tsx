@@ -148,17 +148,40 @@ function CodeLines({
     return set;
   }, [explained]);
 
-  // Bring a focused range into view, but leave the scroll alone when it is already visible
-  // (clicking a line in the code should not make the page jump).
+  // A block focused from the explanation scrolls so its top lines up with that evidence entry.
+  // Focus set by clicking the code itself (the mouse is on a block) leaves the code still.
+  const hovering = useRef(false);
+  hovering.current = block !== null;
   useEffect(() => {
-    if (!focus || !container.current) return;
-    const el = container.current.querySelector(`[data-line="${focus.start}"]`);
+    const box = container.current;
+    if (!focus || !box || hovering.current) return;
+    const el = box.querySelector(`[data-line="${focus.start}"]`);
     if (!el) return;
-    const box = container.current.getBoundingClientRect();
     const line = el.getBoundingClientRect();
-    if (line.top < box.top || line.bottom > box.bottom)
+    const entry = document.querySelector(
+      `[data-evidence-range="${focus.start}-${focus.end}"]`,
+    );
+    if (entry) {
+      box.scrollTo({
+        top: box.scrollTop + line.top - entry.getBoundingClientRect().top,
+        behavior: "smooth",
+      });
+      return;
+    }
+    const view = box.getBoundingClientRect();
+    if (line.top < view.top || line.bottom > view.bottom)
       el.scrollIntoView({ block: "center", behavior: "smooth" });
   }, [focus]);
+
+  /** Clicking code selects the whole explained block it belongs to (again: deselect). */
+  const select = (n: number) => {
+    const b = narrowest(explained, n);
+    onFocus(
+      !b || (focus && focus.start === b.start && focus.end === b.end)
+        ? null
+        : { start: b.start, end: b.end },
+    );
+  };
 
   const lineAt = (target: EventTarget) =>
     Number(
@@ -172,19 +195,22 @@ function CodeLines({
       onMouseOver={(e) => hover(lineAt(e.target))}
       onMouseLeave={() => hover(null)}
       onClick={(e) => {
-        // A click on the code selects the line, unless the reader is selecting text to copy.
+        // A click on the code selects its block, unless the reader is selecting text to copy.
         if (window.getSelection()?.toString()) return;
         if ((e.target as HTMLElement).closest("button")) return;
         const n = lineAt(e.target);
-        if (n) onFocus({ start: n, end: n });
+        if (n) select(n);
       }}
+      data-code-scroll
       className="min-h-0 flex-1 overflow-auto py-3 font-mono text-[12.5px] leading-[1.7] scrollbar-thin"
     >
       <div className="min-w-max">
         {lines.map((text, i) => {
           const n = i + 1;
           const active = focus && n >= focus.start && n <= focus.end;
-          const peeked =
+          // One look for "this block is the one being explained", whichever side pointed at it.
+          const lit =
+            active ||
             (peek && n >= peek.start && n <= peek.end) ||
             (block && n >= block.start && n <= block.end);
           return (
@@ -194,20 +220,13 @@ function CodeLines({
               className={cn(
                 "flex border-l-2 border-transparent pr-6",
                 covered.has(n) && "border-foreground/12",
-                peeked && "border-foreground/35 bg-accent",
-                active && "border-foreground/50 bg-warning/10",
+                lit && "border-foreground/50 bg-warning/10",
               )}
             >
               <button
                 type="button"
                 tabIndex={-1}
-                onClick={() =>
-                  onFocus(
-                    active && focus.start === focus.end
-                      ? null
-                      : { start: n, end: n },
-                  )
-                }
+                onClick={() => select(n)}
                 style={{ width: gutter }}
                 className={cn(
                   "shrink-0 cursor-pointer pr-4 pl-3 text-right text-subtle-foreground/70 tabular-nums select-none hover:text-foreground",
