@@ -84,13 +84,19 @@ function FileHint({
         side="right"
         align="start"
         sideOffset={8}
-        className="max-w-72 space-y-1 px-3 py-2 text-left text-pretty"
+        arrow={false}
+        // A light card like the menus rather than the default dark tooltip.
+        className="w-96 max-w-[calc(100vw-2rem)] space-y-1.5 rounded-xl border bg-popover px-4 py-3 text-left text-pretty text-popover-foreground shadow-lg"
       >
         {hint.brief && (
-          <p className="text-[13px] leading-5 font-medium">{hint.brief}</p>
+          <p className="text-sm leading-5 font-medium">{hint.brief}</p>
         )}
-        {hint.detail && <p className="leading-5 opacity-80">{hint.detail}</p>}
-        <p className="truncate pt-0.5 font-mono text-[10.5px] opacity-55">
+        {hint.detail && (
+          <p className="text-[13px] leading-5 text-muted-foreground">
+            {hint.detail}
+          </p>
+        )}
+        <p className="truncate pt-0.5 font-mono text-[11px] text-subtle-foreground">
           {splitPath(path).name} · {status}
         </p>
       </TooltipContent>
