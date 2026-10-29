@@ -1,5 +1,7 @@
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
+import { NavLink, useParams } from "react-router";
 import {
+  Boxes,
   Gauge,
   Loader2,
   Monitor,
@@ -9,65 +11,65 @@ import {
 } from "lucide-react";
 import type { ConfigView } from "@shared/api";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { PageHeader } from "@/components/layout/page-header";
 import { Input } from "@/components/ui/input";
-import type { SettingsTab } from "@/components/layout/ui-state";
+import { ModelSettings } from "./model-settings";
 import { useTheme, type ThemePreference } from "@/hooks/use-theme";
 import { useConfig, useSaveConfig } from "@/lib/queries";
 import { cn } from "@/lib/utils";
 
-const tabs: { id: SettingsTab; label: string; icon: typeof Gauge }[] = [
+const tabs = [
   { id: "general", label: "常规", icon: SlidersHorizontal },
+  { id: "models", label: "模型", icon: Boxes },
   { id: "generation", label: "生成偏好", icon: Gauge },
-];
+] as const;
 
-export function SettingsDialog({
-  tab,
-  onTabChange,
-  onOpenChange,
-}: {
-  tab: SettingsTab | null;
-  onTabChange: (tab: SettingsTab) => void;
-  onOpenChange: (open: boolean) => void;
-}) {
+export type SettingsTab = (typeof tabs)[number]["id"];
+
+/** Settings as a page; the tab lives in the URL (/settings/models) so it can be linked to. */
+export function SettingsPage() {
+  const { tab: param } = useParams();
+  const tab: SettingsTab = tabs.find((t) => t.id === param)?.id ?? "general";
   return (
-    <Dialog open={tab !== null} onOpenChange={onOpenChange}>
-      <DialogContent className="gap-0 overflow-hidden p-0 sm:max-w-[680px]">
-        <DialogTitle className="border-b px-6 py-4 text-lg font-medium">
-          设置
-        </DialogTitle>
-        <DialogDescription className="sr-only">
-          外观与生成偏好
-        </DialogDescription>
-        <div className="flex min-h-[420px] max-sm:flex-col">
-          <nav className="flex shrink-0 gap-0.5 p-2 sm:w-44 sm:flex-col max-sm:border-b">
+    <>
+      <PageHeader>
+        <h1 className="px-2.5 text-lg font-medium">设置</h1>
+      </PageHeader>
+      <div className="min-h-0 flex-1 overflow-y-auto scrollbar-thin">
+        <div className="mx-auto max-w-5xl px-4 pb-16 sm:px-6">
+          <nav
+            aria-label="设置分类"
+            className="sticky top-0 z-10 -mx-1 flex gap-1 overflow-x-auto bg-background px-1 pt-1 pb-4"
+          >
             {tabs.map((t) => (
-              <button
+              <NavLink
                 key={t.id}
-                type="button"
-                onClick={() => onTabChange(t.id)}
+                to={`/settings/${t.id}`}
                 aria-current={tab === t.id ? "page" : undefined}
                 className={cn(
-                  "flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm transition-colors hover:bg-accent",
-                  tab === t.id && "bg-accent",
+                  "flex shrink-0 items-center gap-2 rounded-full px-3.5 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground",
+                  tab === t.id && "bg-accent text-foreground",
                 )}
               >
-                <t.icon className="size-4 text-muted-foreground" />
+                <t.icon className="size-4" />
                 {t.label}
-              </button>
+              </NavLink>
             ))}
           </nav>
-          <div className="min-w-0 flex-1 px-6 pb-6">
-            {tab === "general" ? <GeneralSettings /> : tab && <ConfigForm />}
-          </div>
+          {tab === "general" ? (
+            <section className="max-w-2xl">
+              <GeneralSettings />
+            </section>
+          ) : tab === "models" ? (
+            <ModelSettings />
+          ) : (
+            <section className="max-w-2xl">
+              <ConfigForm />
+            </section>
+          )}
         </div>
-      </DialogContent>
-    </Dialog>
+      </div>
+    </>
   );
 }
 
@@ -157,7 +159,7 @@ function ConfigForm() {
         />
       </Row>
       <p className="mt-5 text-xs leading-5 text-subtle-foreground">
-        这些是请求范围限制，不是费用预算保证。模型供应商在左侧栏“模型”页管理。
+        这些是请求范围限制，不是费用预算保证。
       </p>
       <div className="mt-auto flex justify-end pt-8">
         <Button type="submit" disabled={save.isPending}>

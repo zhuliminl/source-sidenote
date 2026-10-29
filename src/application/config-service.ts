@@ -16,7 +16,7 @@ import {
   type Provider,
   type Settings,
 } from "../domain/model.js";
-import { completeJson, listModels } from "../infrastructure/llm/client.js";
+import { completeText, listModels } from "../infrastructure/llm/client.js";
 import type { ConfigStore } from "../infrastructure/persistence/config-store.js";
 import type { AppEvents } from "./events.js";
 
@@ -148,8 +148,9 @@ export class ConfigService {
     );
     const start = Date.now();
     try {
-      await completeJson(conn, [
-        { role: "system", content: '只输出 JSON：{"ok":true}' },
+      // Any text proves the connection; whether a model follows JSON instructions shows up in real jobs.
+      await completeText(conn, [
+        { role: "system", content: "这是连接测试，回复 ok 即可。" },
         { role: "user", content: "ping" },
       ]);
       return { ok: true, ms: Date.now() - start, error: null };

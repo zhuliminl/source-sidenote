@@ -64,7 +64,7 @@ export function HomePage() {
         {needsModel && (
           <button
             type="button"
-            onClick={() => navigate("/models")}
+            onClick={() => navigate("/settings/models")}
             className="mx-auto mb-4 flex items-center gap-2 rounded-full border px-3.5 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
           >
             <Plug className="size-3.5" />

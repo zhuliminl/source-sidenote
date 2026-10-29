@@ -20,7 +20,6 @@ import type {
   ModelTest,
   ProviderView,
 } from "@shared/api";
-import { PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
 import {
   AlertDialog,
@@ -112,7 +111,8 @@ function plaintext(url: string) {
   }
 }
 
-export function ModelsPage() {
+/** Providers and the one model jobs use; the "模型" tab of the settings page. */
+export function ModelSettings() {
   const config = useConfig();
   const [selected, setSelected] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
@@ -124,59 +124,52 @@ export function ModelsPage() {
 
   return (
     <>
-      <PageHeader>
-        <h1 className="px-2.5 text-lg font-medium">模型</h1>
-      </PageHeader>
-      <div className="min-h-0 flex-1 overflow-y-auto scrollbar-thin">
-        <div className="mx-auto max-w-5xl px-4 pt-2 pb-16 sm:px-6">
-          <div className="flex flex-wrap items-center gap-3">
-            <p className="min-w-0 flex-1 text-[15px] leading-7 text-muted-foreground">
-              可以配置多个供应商和模型，选其中一个用来生成说明。
-            </p>
-            <Button size="sm" onClick={() => setAdding(true)}>
-              <Plus />
-              添加供应商
-            </Button>
-          </div>
-
-          {config.data ? (
-            <>
-              <ActiveBanner config={config.data} />
-              {providers.length ? (
-                <div className="mt-4 flex overflow-hidden rounded-2xl border bg-card max-md:flex-col">
-                  <ProviderList
-                    providers={providers}
-                    config={config.data}
-                    current={current?.id}
-                    onSelect={setSelected}
-                  />
-                  {current && (
-                    <ProviderDetail
-                      key={current.id}
-                      provider={current}
-                      config={config.data}
-                    />
-                  )}
-                </div>
-              ) : (
-                <div className="mt-4 flex flex-col items-center gap-3 rounded-2xl border border-dashed px-6 py-14 text-center">
-                  <Boxes className="size-6 text-subtle-foreground" />
-                  <p className="text-sm text-muted-foreground">
-                    还没有模型供应商。添加一个兼容 OpenAI 或 Anthropic
-                    接口的服务即可开始。
-                  </p>
-                  <Button size="sm" onClick={() => setAdding(true)}>
-                    <Plus />
-                    添加供应商
-                  </Button>
-                </div>
-              )}
-            </>
-          ) : (
-            <Skeleton className="mt-4 h-96 rounded-2xl" />
-          )}
-        </div>
+      <div className="flex flex-wrap items-center gap-3">
+        <p className="min-w-0 flex-1 text-[15px] leading-7 text-muted-foreground">
+          可以配置多个供应商和模型，选其中一个用来生成说明。
+        </p>
+        <Button size="sm" onClick={() => setAdding(true)}>
+          <Plus />
+          添加供应商
+        </Button>
       </div>
+
+      {config.data ? (
+        <>
+          <ActiveBanner config={config.data} />
+          {providers.length ? (
+            <div className="mt-4 flex overflow-hidden rounded-2xl border bg-card max-md:flex-col">
+              <ProviderList
+                providers={providers}
+                config={config.data}
+                current={current?.id}
+                onSelect={setSelected}
+              />
+              {current && (
+                <ProviderDetail
+                  key={current.id}
+                  provider={current}
+                  config={config.data}
+                />
+              )}
+            </div>
+          ) : (
+            <div className="mt-4 flex flex-col items-center gap-3 rounded-2xl border border-dashed px-6 py-14 text-center">
+              <Boxes className="size-6 text-subtle-foreground" />
+              <p className="text-sm text-muted-foreground">
+                还没有模型供应商。添加一个兼容 OpenAI 或 Anthropic
+                接口的服务即可开始。
+              </p>
+              <Button size="sm" onClick={() => setAdding(true)}>
+                <Plus />
+                添加供应商
+              </Button>
+            </div>
+          )}
+        </>
+      ) : (
+        <Skeleton className="mt-4 h-96 rounded-2xl" />
+      )}
       <AddProviderDialog
         open={adding}
         onOpenChange={setAdding}

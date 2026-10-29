@@ -4,9 +4,7 @@ export interface UiState {
   sidebarOpen: boolean;
   setSidebarOpen: (open: boolean) => void;
   isMobile: boolean;
-  openSettings: (tab?: SettingsTab) => void;
 }
-export type SettingsTab = "general" | "generation";
 
 export const UiContext = createContext<UiState | null>(null);
 

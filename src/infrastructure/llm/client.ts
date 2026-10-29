@@ -60,12 +60,12 @@ async function send(
   }
 }
 
-/** Sends one prompt and returns the model's JSON output. */
-export async function completeJson(
+/** Sends one prompt and returns the model's text. */
+export async function completeText(
   c: Connection,
   messages: ChatMessage[],
   signal?: AbortSignal,
-): Promise<unknown> {
+): Promise<string> {
   const anthropic = c.format === "anthropic-messages";
   const body = anthropic
     ? {
@@ -92,6 +92,16 @@ export async function completeJson(
     : res?.choices?.[0]?.message?.content;
   if (typeof text !== "string" || !text)
     throw new Error("Model returned no text");
+  return text;
+}
+
+/** Sends one prompt and returns the model's JSON output. */
+export async function completeJson(
+  c: Connection,
+  messages: ChatMessage[],
+  signal?: AbortSignal,
+): Promise<unknown> {
+  const text = await completeText(c, messages, signal);
   try {
     return JSON.parse(
       text.replace(/^\s*```(?:json)?\s*/, "").replace(/\s*```\s*$/, ""),

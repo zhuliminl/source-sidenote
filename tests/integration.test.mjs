@@ -105,7 +105,7 @@ test("topics: plan, confirm, explain, overview, review, staleness, cancellation,
         ),
       );
     // Connection tests from the settings page.
-    if (system.includes('"ok":true')) return reply({ ok: true });
+    if (system.includes("连接测试")) return reply({ ok: true });
     const kind = system.includes("挑选")
       ? "plan"
       : system.includes("导读")

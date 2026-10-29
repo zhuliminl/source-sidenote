@@ -1,6 +1,5 @@
 import { Link, NavLink, useMatch } from "react-router";
 import {
-  Boxes,
   Ellipsis,
   ListChecks,
   ScrollText,
@@ -17,13 +16,11 @@ import { ProjectActionsMenu } from "@/features/project/project-actions";
 import { useConfig, useJobs, useProjects } from "@/lib/queries";
 import { cn } from "@/lib/utils";
 import { SidebarToggle } from "./sidebar-toggle";
-import { useUi } from "./ui-state";
 
 const rowClass =
   "group/row flex h-9 w-full items-center gap-2.5 rounded-lg px-2.5 text-sm text-sidebar-foreground transition-colors hover:bg-sidebar-accent";
 
 export function Sidebar() {
-  const { openSettings } = useUi();
   const jobs = useJobs();
   const config = useConfig();
   const active = jobs.data?.filter(
@@ -77,20 +74,6 @@ export function Sidebar() {
           <ScrollText className="size-4" />
           提示词
         </NavLink>
-        <NavLink
-          to="/models"
-          className={({ isActive }) =>
-            cn(rowClass, isActive && "bg-sidebar-accent")
-          }
-        >
-          <Boxes className="size-4" />
-          模型
-          {config.data && (
-            <span className="ml-auto max-w-28 truncate font-mono text-[11px] text-subtle-foreground">
-              {config.data.model || "未选择"}
-            </span>
-          )}
-        </NavLink>
       </div>
 
       <div className="mt-5 px-4 pb-1.5 text-xs font-medium text-subtle-foreground">
@@ -101,15 +84,23 @@ export function Sidebar() {
       </ScrollArea>
 
       <div className="border-t border-sidebar-border p-2">
-        <button
-          type="button"
-          className={rowClass}
-          onClick={() => openSettings("general")}
+        <NavLink
+          to="/settings"
+          className={({ isActive }) =>
+            cn(rowClass, isActive && "bg-sidebar-accent")
+          }
         >
           <Settings className="size-4" />
           设置
-          <span className="ml-auto text-xs text-subtle-foreground">本机</span>
-        </button>
+          {config.data && (
+            <span
+              title="当前模型"
+              className="ml-auto max-w-32 truncate font-mono text-[11px] text-subtle-foreground"
+            >
+              {config.data.model || "未选择模型"}
+            </span>
+          )}
+        </NavLink>
       </div>
     </nav>
   );
