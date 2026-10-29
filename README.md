@@ -4,7 +4,9 @@
 
 Source Sidenote 按**主题**帮你读懂本地项目：描述你想弄懂的功能或链路，AI 先挑出相关文件，你确认后才逐个生成有代码依据的说明，最后写一份把这些文件串起来的链路导读。不必为了读懂一条链路而解释整个仓库。独立 Node 服务管理模型、项目和生成任务；编辑器里负责 review：VS Code 扩展把代码依据标在代码上、按光标对应说明，Neovim 通过轻量适配器在当前代码窗口右侧显示 Markdown。
 
-> **0.1.0 开发预览**：尚未发布到 npm/GitHub。当前验证使用模拟模型，真实模型质量、费用和不同提供商兼容性需要实际验收。不要将 AI 复查通过当成正确性证明。
+> **0.1.0 开发预览**：可以从 GitHub 源码运行，尚未发布到 npm 和 VS Code 插件市场。自动化测试使用模拟模型；真实模型的质量、费用和不同提供商兼容性仍需在你的项目上验收。不要将 AI 复查通过当成正确性证明。
+
+**English** — Source Sidenote helps you understand a local codebase one _topic_ at a time. Describe the flow you want to learn; an AI picks the relevant files, you confirm the list, then it writes a diagram-first, evidence-linked explanation for each file plus a walkthrough that ties them together. A web reader shows code and explanations side by side (hover a block of code to see the matching evidence), a floating topic map, and replayable "stories" that step through the code for one question. VS Code and Neovim plugins bring the explanations next to your code for review. Everything runs on your machine against any OpenAI-compatible or Anthropic-compatible model endpoint you configure. The UI is in Chinese for now.
 
 ## 当前可用
 
@@ -27,28 +29,22 @@ Source Sidenote 按**主题**帮你读懂本地项目：描述你想弄懂的功
 需要 **Node 26.12.1+（26.x）**。本项目使用内置 `node:sqlite`，该接口目前仍是 Release Candidate，因此锁定主版本。项目 Node 可用 nvm 等工具独立管理，不要修改旧业务项目的运行环境。
 
 ```sh
+git clone https://github.com/zhuliminl/source-sidenote.git
+cd source-sidenote
 npm ci
-npm test
+npm test   # 构建服务端与管理页并跑集成测试
 npm start
 ```
 
 服务默认监听 `127.0.0.1:47831`，自动打开管理页。先配置模型，再添加项目、新建主题。也可以在另一个终端注册项目：
 
 ```sh
-# 尚未发布时，使用本地项目里的 CLI（路径请按实际安装位置修改）
-cd /path/to/business-project
+# 使用克隆下来的 CLI（路径按实际位置修改）
+cd /path/to/your-project
 node /path/to/source-sidenote/dist/cli/main.js add
 ```
 
-`start` 默认前台运行，关闭终端会结束服务；任务会保留。发布后的目标用法：
-
-```sh
-npx source-sidenote start
-# 另一终端进入项目
-npx source-sidenote add
-```
-
-也可 `npm link` 后使用 `sidenote`。`npx` 不会安装所需 Node 运行时。
+`start` 默认前台运行，关闭终端会结束服务；任务会保留。在仓库目录执行 `npm link` 后，可以在任何地方直接用 `sidenote` 命令。
 
 ```text
 sidenote start [--no-open] [--port 47831]
@@ -117,4 +113,8 @@ npm pack --dry-run
 
 管理页源码在 `web/`（npm workspace）。开发时先 `npm start`，再运行 `npm run dev`，打开 `http://localhost:5173`；Vite 会把 `/api` 代理到本机服务。
 
-参见 [架构](docs/architecture.md)、[竞品与定位](docs/landscape.md)、[验收](docs/acceptance.md)、[贡献说明](CONTRIBUTING.md)。MIT License。
+参见 [架构](docs/architecture.md)、[竞品与定位](docs/landscape.md)、[验收](docs/acceptance.md)、[贡献说明](CONTRIBUTING.md)。
+
+## 许可
+
+[MIT](LICENSE)。欢迎提 issue 和 PR，提交前请阅读 [贡献说明](CONTRIBUTING.md) 与 [安全说明](SECURITY.md)。

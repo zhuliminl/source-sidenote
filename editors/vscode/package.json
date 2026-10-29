@@ -6,6 +6,16 @@
   "publisher": "source-sidenote",
   "private": true,
   "license": "MIT",
+  "author": "zhuliminl",
+  "homepage": "https://github.com/zhuliminl/source-sidenote#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/zhuliminl/source-sidenote.git",
+    "directory": "editors/vscode"
+  },
+  "bugs": {
+    "url": "https://github.com/zhuliminl/source-sidenote/issues"
+  },
   "engines": {
     "vscode": "^1.90.0"
   },
