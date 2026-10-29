@@ -230,6 +230,8 @@ test("topics: plan, confirm, explain, overview, review, staleness, cancellation,
       instructions: "用一句话",
     });
     assert.equal(topic.state, "planning");
+    // Without a choice the topic takes the default model and keeps it.
+    assert.deepEqual([topic.provider, topic.model], [provider, "fixture"]);
     await until(
       async () => (await api(`topics/${topic.id}`)).state === "planned",
     );
@@ -328,11 +330,28 @@ test("topics: plan, confirm, explain, overview, review, staleness, cancellation,
     await api(`topics/${topic.id}/refresh`, {});
     await until(async () => (await api(doc)).status === "fresh");
 
-    // Switching models marks earlier explanations for regeneration.
+    // Changing the default model does not touch existing topics…
     await api("config", { active: { provider, model: "fixture-2" } }, "PUT");
-    assert.equal((await api(doc)).status, "stale");
-    assert.equal((await api(`topics/${topic.id}`)).entries[0].status, "stale");
+    assert.equal((await api(doc)).status, "fresh");
     await api("config", { active: { provider, model: "fixture" } }, "PUT");
+    // …switching the topic's own model regenerates its explanations with that model.
+    const reconfirmed = await api(`topics/${topic.id}/confirm`, {
+      files: [{ path: "hello.ts", reason: "入口" }],
+      model: { provider, model: "fixture-2" },
+    });
+    assert.equal(reconfirmed.queued, 1);
+    assert.equal((await api(`topics/${topic.id}`)).model, "fixture-2");
+    await until(async () => (await api(doc)).model === "fixture-2");
+    // A model that is not listed (or is switched off) cannot be chosen.
+    assert.equal(
+      (
+        await call(`projects/${id}/topics`, {
+          request: "x",
+          model: { provider, model: "nope" },
+        })
+      ).status,
+      400,
+    );
 
     const source = await api(`projects/${id}/source?path=hello.ts`);
     assert.equal(source.content, "export const hello = () => 3;\n");

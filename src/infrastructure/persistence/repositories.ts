@@ -79,14 +79,26 @@ export class FileRepository {
 export class TopicRepository {
   constructor(private db: DatabaseSync) {}
   create(
-    t: Pick<Topic, "project" | "title" | "request" | "instructions">,
+    t: Pick<
+      Topic,
+      "project" | "title" | "request" | "instructions" | "provider" | "model"
+    >,
   ): Topic {
     const id = randomUUID();
     this.db
       .prepare(
-        "INSERT INTO topics(id,project,title,request,instructions,state,plan,error,model,overview,created) VALUES(?,?,?,?,?,'planning','',NULL,NULL,NULL,?)",
+        "INSERT INTO topics(id,project,title,request,instructions,state,plan,error,provider,model,overview,created) VALUES(?,?,?,?,?,'planning','',NULL,?,?,NULL,?)",
       )
-      .run(id, t.project, t.title, t.request, t.instructions, now());
+      .run(
+        id,
+        t.project,
+        t.title,
+        t.request,
+        t.instructions,
+        t.provider,
+        t.model,
+        now(),
+      );
     return this.get(id);
   }
   get(id: string): Topic {
@@ -108,7 +120,13 @@ export class TopicRepository {
     fields: Partial<
       Pick<
         Topic,
-        "title" | "instructions" | "plan" | "error" | "model" | "overview"
+        | "title"
+        | "instructions"
+        | "plan"
+        | "error"
+        | "provider"
+        | "model"
+        | "overview"
       > & { state: TopicState }
     >,
   ) {

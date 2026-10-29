@@ -97,6 +97,8 @@ export interface TopicView extends TopicSummary {
   /** Planner's one-paragraph take on the topic. */
   plan: string;
   error: string | null;
+  /** The topic's model; provider null means it follows the default model. */
+  provider: string | null;
   model: string | null;
   /** Reading order. */
   entries: TopicFile[];
@@ -106,11 +108,20 @@ export interface TopicView extends TopicSummary {
 export interface TopicCreate {
   request: string;
   instructions?: string;
+  /** Defaults to the default model. */
+  model?: ActiveModel;
 }
 
 export interface TopicConfirm {
   files: { path: string; reason: string }[];
   instructions?: string;
+  /** Switch the model before generating. */
+  model?: ActiveModel;
+}
+
+export interface TopicReplan {
+  instructions?: string;
+  model?: ActiveModel;
 }
 
 /** Current on-disk text of an in-scope source file. */

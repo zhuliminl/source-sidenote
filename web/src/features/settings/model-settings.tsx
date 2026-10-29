@@ -126,7 +126,7 @@ export function ModelSettings() {
     <>
       <div className="flex flex-wrap items-center gap-3">
         <p className="min-w-0 flex-1 text-[15px] leading-7 text-muted-foreground">
-          可以配置多个供应商和模型，选其中一个用来生成说明。
+          可以配置多个供应商和模型。新建主题时选用哪个模型，默认模型会预先选好。
         </p>
         <Button size="sm" onClick={() => setAdding(true)}>
           <Plus />
@@ -194,7 +194,7 @@ function ActiveBanner({ config }: { config: ConfigView }) {
       {ok ? (
         <>
           <span className="size-2 shrink-0 rounded-full bg-emerald-500" />
-          正在使用
+          默认模型
           <span className="font-medium">{provider!.name}</span>
           <span className="text-subtle-foreground">/</span>
           <span className="truncate font-mono text-[13px]">{config.model}</span>
@@ -203,8 +203,8 @@ function ActiveBanner({ config }: { config: ConfigView }) {
         <>
           <AlertTriangle className="size-4 shrink-0" />
           {config.active
-            ? "当前选择的模型已关闭或被移除，生成任务已暂停。请重新选择一个模型。"
-            : "还没有选择模型：在下面的模型列表里点某个模型右侧的“使用”。"}
+            ? "默认模型已关闭或被移除。请重新设一个默认模型；已有主题仍用各自的模型。"
+            : "还没有默认模型：在下面的模型列表里点某个模型右侧的“设为默认”。"}
         </>
       )}
     </div>
@@ -252,7 +252,7 @@ function ProviderList({
             <span className="min-w-0 flex-1 truncate">{p.name}</span>
             {config.active?.provider === p.id ? (
               <span className="rounded-full bg-foreground px-1.5 py-px text-[10px] text-background">
-                使用中
+                默认
               </span>
             ) : (
               <span className="text-xs text-subtle-foreground tabular-nums">
@@ -447,7 +447,7 @@ function ProviderDetail({
             <AlertDialogDescription>
               会删除它的连接信息、API Key 和模型列表。已生成的说明不受影响
               {config.active?.provider === provider.id &&
-                "；它是当前使用的供应商，删除后生成任务会暂停，直到你选择新的模型"}
+                "；用它的主题会无法继续生成，需要在主题里换一个模型"}
               。
             </AlertDialogDescription>
           </AlertDialogHeader>
@@ -630,8 +630,8 @@ function ModelRow({
       { active: { provider: provider.id, model: model.id } },
       {
         onSuccess: () =>
-          toast(`已切换到 ${model.id}`, {
-            description: "之前用其他模型生成的说明会标记为待更新。",
+          toast(`默认模型改为 ${model.id}`, {
+            description: "只影响之后新建的主题。",
           }),
       },
     );
@@ -648,7 +648,7 @@ function ModelRow({
       </span>
       {active && (
         <span className="shrink-0 rounded-full bg-foreground px-1.5 py-px text-[10px] text-background">
-          使用中
+          默认
         </span>
       )}
       {result && (
@@ -677,11 +677,11 @@ function ModelRow({
             variant="outline"
             size="xs"
             disabled={!usable || save.isPending}
-            title={usable ? "用这个模型生成说明" : "先启用供应商和模型"}
+            title={usable ? "新建主题时默认选这个模型" : "先启用供应商和模型"}
             onClick={use}
             className="mr-1"
           >
-            使用
+            设为默认
           </Button>
         )}
         <Button
@@ -704,7 +704,7 @@ function ModelRow({
           variant="ghost"
           size="icon-sm"
           aria-label="移除模型"
-          title={active ? "移除后需要重新选择模型" : "移除"}
+          title={active ? "移除后需要重新设默认模型" : "移除"}
           onClick={onRemove}
           className="text-muted-foreground"
         >

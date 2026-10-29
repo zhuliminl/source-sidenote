@@ -94,7 +94,7 @@ export function Sidebar() {
           设置
           {config.data && (
             <span
-              title="当前模型"
+              title="默认模型"
               className="ml-auto max-w-32 truncate font-mono text-[11px] text-subtle-foreground"
             >
               {config.data.model || "未选择模型"}

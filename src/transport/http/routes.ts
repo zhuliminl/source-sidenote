@@ -32,9 +32,19 @@ const idParams = z.object({ id: z.string().min(1) });
 const addBody = z.object({ root: z.string().min(1) });
 const pathQuery = z.object({ path: z.string().min(1) });
 const text = z.string().max(4000);
-const topicCreate = z.object({ request: text, instructions: text.optional() });
-const topicReplan = z.object({ instructions: text.optional() }).default({});
+const modelChoice = z
+  .object({ provider: z.string().min(1), model: z.string().min(1) })
+  .optional();
+const topicCreate = z.object({
+  request: text,
+  instructions: text.optional(),
+  model: modelChoice,
+});
+const topicReplan = z
+  .object({ instructions: text.optional(), model: modelChoice })
+  .default({});
 const topicConfirm = z.object({
+  model: modelChoice,
   files: z
     .array(z.object({ path: z.string().min(1), reason: z.string() }))
     .max(100),
@@ -142,7 +152,7 @@ export function registerRoutes(
   app.post("/api/topics/:id/plan", (req): Promise<TopicView> =>
     topics.replan(
       idParams.parse(req.params).id,
-      topicReplan.parse(req.body ?? {}).instructions,
+      topicReplan.parse(req.body ?? {}),
     ),
   );
   app.post("/api/topics/:id/confirm", (req): Promise<RunResult> =>

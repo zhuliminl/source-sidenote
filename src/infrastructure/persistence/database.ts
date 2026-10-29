@@ -22,6 +22,8 @@ const migrations: string[] = [
    ALTER TABLE jobs ADD COLUMN topic TEXT NOT NULL DEFAULT '';
    DROP INDEX one_active;
    CREATE UNIQUE INDEX one_active ON jobs(topic,path,kind) WHERE state IN ('queued','running');`,
+  // Each topic picks its own model; existing topics keep following the default model.
+  `ALTER TABLE topics ADD COLUMN provider TEXT;`,
 ];
 
 export function openDatabase(home: string): DatabaseSync {

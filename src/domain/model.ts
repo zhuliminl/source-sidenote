@@ -30,7 +30,8 @@ export interface Topic {
   state: TopicState;
   plan: string;
   error: string | null;
-  /** Model that generated the explanations (set on confirm). */
+  /** The model this topic runs with; null provider means "follow the default model" (topics from before per-topic models). */
+  provider: string | null;
   model: string | null;
   overview: string | null;
   created: string;
@@ -126,14 +127,26 @@ export function connectionOf(
   };
 }
 
-/** A missing or switched-off provider or model leaves model "", which pauses jobs. */
-export function resolveModel(s: Settings): ModelConfig {
-  const p = s.providers.find((p) => p.id === s.active?.provider);
+export function topicModel(
+  t: Pick<Topic, "provider" | "model">,
+): ActiveModel | null {
+  return t.provider && t.model
+    ? { provider: t.provider, model: t.model }
+    : null;
+}
+
+/** Resolves a model choice (default: the default model); a missing or switched-off one leaves model "". */
+export function resolveModel(
+  s: Settings,
+  choice: ActiveModel | null = s.active,
+): ModelConfig {
+  const pick = choice ?? s.active;
+  const p = s.providers.find((p) => p.id === pick?.provider);
   const usable =
-    p?.enabled && p.models.some((m) => m.id === s.active!.model && m.enabled);
+    p?.enabled && p.models.some((m) => m.id === pick!.model && m.enabled);
   return {
     ...(p
-      ? connectionOf(p, usable ? s.active!.model : "", s.timeoutMs)
+      ? connectionOf(p, usable ? pick!.model : "", s.timeoutMs)
       : {
           format: "openai-chat",
           baseUrl: "",

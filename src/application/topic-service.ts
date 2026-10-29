@@ -7,11 +7,13 @@ import type {
   RunResult,
   TopicConfirm,
   TopicCreate,
+  TopicReplan,
+  ActiveModel,
   TopicFile,
   TopicSummary,
   TopicView,
 } from "../shared/api.js";
-import { parseReview, type Topic } from "../domain/model.js";
+import { parseReview, topicModel, type Topic } from "../domain/model.js";
 import { badRequest, conflict, notFound } from "../domain/errors.js";
 import { promptCatalog } from "../infrastructure/llm/prompts.js";
 import { isFresh, snapshot, trySnapshot } from "./freshness.js";
@@ -53,7 +55,8 @@ export class TopicService {
       instructions: t.instructions,
       plan: t.plan,
       error: t.error,
-      model: t.model,
+      provider: t.provider,
+      model: t.provider ? t.model : this.deps.config.get().model || null,
       entries,
       overview: t.overview ? JSON.parse(t.overview) : null,
     };
@@ -68,13 +71,18 @@ export class TopicService {
       (input.instructions ?? "").length > MAX_TEXT
     )
       throw badRequest("内容过长");
-    this.requireModel();
+    // The topic keeps the model it was created with, even if the default changes later.
+    const choice = this.requireModel(
+      input.model ?? this.deps.config.settings().active,
+    );
     await this.projects.rescan(project);
     const topic = this.deps.topics.create({
       project,
       title: request.split("\n")[0].slice(0, 40),
       request,
       instructions: (input.instructions ?? "").trim(),
+      provider: choice.provider,
+      model: choice.model,
     });
     this.deps.jobs.enqueue(project, topic.id, "", "plan");
     this.changed();
@@ -82,17 +90,18 @@ export class TopicService {
   }
 
   /** Runs planning again, e.g. after a failure or to get a different proposal. */
-  async replan(id: string, instructions?: string): Promise<TopicView> {
+  async replan(id: string, input: TopicReplan = {}): Promise<TopicView> {
     const t = this.deps.topics.get(id);
     if (t.state === "confirmed") throw conflict("主题已确认，请删除后重新创建");
-    this.requireModel();
+    const choice = this.requireModel(input.model ?? topicModel(t));
     await this.projects.rescan(t.project);
     this.deps.topics.update(id, {
       state: "planning",
       error: null,
-      ...(instructions === undefined
+      ...(input.model ? choice : {}),
+      ...(input.instructions === undefined
         ? {}
-        : { instructions: instructions.trim() }),
+        : { instructions: input.instructions.trim() }),
     });
     this.deps.jobs.enqueue(t.project, id, "", "plan");
     this.changed();
@@ -105,7 +114,7 @@ export class TopicService {
     if (t.state === "planning") throw conflict("主题仍在规划中");
     if ((input.instructions ?? "").length > MAX_TEXT)
       throw badRequest("内容过长");
-    const cfg = this.requireModel();
+    const choice = this.requireModel(input.model ?? topicModel(t));
     const { files } = await this.projects.rescan(t.project);
     const known = new Set(files.map((f) => f.path));
     const seen = new Set<string>();
@@ -118,7 +127,8 @@ export class TopicService {
     this.deps.topics.setFiles(id, chosen);
     this.deps.topics.update(id, {
       state: "confirmed",
-      model: cfg.model,
+      // Pinning the model also moves topics that followed the default onto an explicit choice.
+      ...choice,
       overview: null,
       ...(input.instructions === undefined
         ? {}
@@ -131,7 +141,7 @@ export class TopicService {
   async refresh(id: string): Promise<RunResult> {
     const t = this.deps.topics.get(id);
     if (t.state !== "confirmed") throw conflict("请先确认主题文件");
-    this.requireModel();
+    this.requireModel(topicModel(t));
     await this.projects.rescan(t.project);
     return this.queueOutdated(t);
   }
@@ -144,7 +154,7 @@ export class TopicService {
       throw badRequest("Unsupported job kind");
     if (!this.deps.topics.files(id).some((f) => f.path === path))
       throw notFound("File is not part of this topic");
-    this.requireModel();
+    this.requireModel(topicModel(t));
     if (kind === "generate") this.deps.topics.update(id, { overview: null });
     const queued = this.deps.jobs.enqueue(t.project, id, path, kind);
     this.changed();
@@ -164,7 +174,7 @@ export class TopicService {
     const p = this.deps.projects.get(t.project);
     const s = await snapshot(p.root, this.deps.files.list(t.project), path);
     return {
-      status: isFresh(d, s, this.deps.config.get().model) ? "fresh" : "stale",
+      status: isFresh(d, s, this.modelOf(t)) ? "fresh" : "stale",
       path,
       markdown: d.markdown,
       explanation: JSON.parse(d.payload),
@@ -192,7 +202,7 @@ export class TopicService {
     const p = this.deps.projects.get(t.project);
     const files = this.deps.files.list(t.project);
     const docs = this.deps.docs.listByTopic(t.id);
-    const { model } = this.deps.config.get();
+    const model = this.modelOf(t);
     return Promise.all(
       this.deps.topics.files(t.id).map(async (f): Promise<TopicFile> => {
         const d = docs.get(f.path);
@@ -229,10 +239,22 @@ export class TopicService {
     };
   }
 
-  private requireModel() {
-    const cfg = this.deps.config.get();
-    if (!cfg.model) throw badRequest("请先在设置中配置模型");
-    return cfg;
+  /** The model id explanations of this topic are compared against. */
+  private modelOf(t: Topic) {
+    return this.deps.config.get(topicModel(t)).model;
+  }
+
+  /** Resolves a choice (null: the default model) and refuses unusable ones. */
+  private requireModel(choice: ActiveModel | null): ActiveModel {
+    const settings = this.deps.config.settings();
+    const pick = choice ?? settings.active;
+    if (!pick || !this.deps.config.get(pick).model)
+      throw badRequest(
+        choice
+          ? "所选模型已关闭或被删除，请换一个模型"
+          : "请先在设置中配置模型",
+      );
+    return pick;
   }
 
   private changed() {

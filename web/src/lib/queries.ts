@@ -10,6 +10,7 @@ import type {
   ProviderInput,
   RunResult,
   TopicConfirm,
+  TopicReplan,
   TopicCreate,
 } from "@shared/api";
 import { api } from "./api";
@@ -116,8 +117,8 @@ export function useCreateTopic(project: string) {
 export function useReplan() {
   const invalidate = useInvalidateTopics();
   return useMutation({
-    mutationFn: (v: { topic: string; instructions?: string }) =>
-      api.replan(v.topic, v.instructions),
+    mutationFn: ({ topic, ...body }: { topic: string } & TopicReplan) =>
+      api.replan(topic, body),
     onSuccess: invalidate,
   });
 }
@@ -129,6 +130,7 @@ export function useConfirmTopic() {
       api.confirmTopic(v.topic, {
         files: v.files,
         instructions: v.instructions,
+        model: v.model,
       }),
     onSuccess: (r) => {
       toast(queuedMessage(r, "生成"));

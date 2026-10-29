@@ -11,7 +11,8 @@ import {
   Trash2,
   X,
 } from "lucide-react";
-import type { TopicFile, TopicView as Topic } from "@shared/api";
+import type { ActiveModel, TopicFile, TopicView as Topic } from "@shared/api";
+import { ModelSelect } from "@/components/model-select";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -30,6 +31,7 @@ import { Diagram } from "@/components/diagram";
 import { PromptBlock } from "@/components/prompt-block";
 import { StatusDot, fileStatusLabel } from "@/components/status-dot";
 import {
+  useConfig,
   useConfirmTopic,
   useFiles,
   useJobs,
@@ -94,6 +96,13 @@ function Planning() {
 
 function PlanFailed({ topic }: { topic: Topic }) {
   const replan = useReplan();
+  const config = useConfig();
+  const [model, setModel] = useState<ActiveModel | null>(() =>
+    topic.provider && topic.model
+      ? { provider: topic.provider, model: topic.model }
+      : null,
+  );
+  const choice = model ?? config.data?.active ?? null;
   return (
     <div className="rounded-xl border px-4 py-4">
       <p className="flex items-center gap-2 text-sm font-medium">
@@ -105,15 +114,26 @@ function PlanFailed({ topic }: { topic: Topic }) {
           {topic.error}
         </p>
       )}
-      <Button
-        size="sm"
-        className="mt-4"
-        disabled={replan.isPending}
-        onClick={() => replan.mutate({ topic: topic.id })}
-      >
-        <RefreshCw />
-        重新规划
-      </Button>
+      <div className="mt-4 flex flex-wrap items-center gap-2">
+        <ModelSelect
+          value={choice}
+          onChange={setModel}
+          className="h-8 w-auto max-w-full"
+        />
+        <Button
+          size="sm"
+          disabled={replan.isPending || !choice}
+          onClick={() =>
+            replan.mutate({
+              topic: topic.id,
+              ...(choice ? { model: choice } : {}),
+            })
+          }
+        >
+          <RefreshCw />
+          重新规划
+        </Button>
+      </div>
     </div>
   );
 }
@@ -124,6 +144,13 @@ function PlanReview({ topic }: { topic: Topic }) {
     topic.entries.map(({ path, reason }) => ({ path, reason })),
   );
   const [instructions, setInstructions] = useState(topic.instructions);
+  const config = useConfig();
+  const [model, setModel] = useState<ActiveModel | null>(() =>
+    topic.provider && topic.model
+      ? { provider: topic.provider, model: topic.model }
+      : null,
+  );
+  const choice = model ?? config.data?.active ?? null;
   const confirm = useConfirmTopic();
   const replan = useReplan();
   const prompts = usePrompts();
@@ -222,6 +249,20 @@ function PlanReview({ topic }: { topic: Topic }) {
         />
       </section>
       <section className="space-y-2">
+        <Label htmlFor="confirm-model">
+          生成用的模型
+          <span className="font-normal text-subtle-foreground">
+            这个主题的说明和导读都用它
+          </span>
+        </Label>
+        <ModelSelect
+          id="confirm-model"
+          value={choice}
+          onChange={setModel}
+          className="sm:max-w-sm"
+        />
+      </section>
+      <section className="space-y-2">
         <SectionTitle hint="确认后，会按下面的提示词发送请求">
           将使用的提示词
         </SectionTitle>
@@ -231,9 +272,14 @@ function PlanReview({ topic }: { topic: Topic }) {
       </section>
       <div className="flex flex-wrap items-center gap-2 border-t pt-6">
         <Button
-          disabled={!files.length || confirm.isPending}
+          disabled={!files.length || !choice || confirm.isPending}
           onClick={() =>
-            confirm.mutate({ topic: topic.id, files, instructions })
+            confirm.mutate({
+              topic: topic.id,
+              files,
+              instructions,
+              ...(choice ? { model: choice } : {}),
+            })
           }
         >
           {confirm.isPending ? (
@@ -246,7 +292,13 @@ function PlanReview({ topic }: { topic: Topic }) {
         <Button
           variant="ghost"
           disabled={replan.isPending}
-          onClick={() => replan.mutate({ topic: topic.id, instructions })}
+          onClick={() =>
+            replan.mutate({
+              topic: topic.id,
+              instructions,
+              ...(choice ? { model: choice } : {}),
+            })
+          }
         >
           <RefreshCw />
           重新规划

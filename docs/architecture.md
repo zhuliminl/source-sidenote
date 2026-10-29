@@ -28,7 +28,7 @@ editors/neovim      仅负责编辑器显示与 CLI 调用
 
 ## 模型配置
 
-config.json 保存供应商列表（名称、开关、API 格式、Base URL、密钥、模型及其开关）、当前模型 `{provider, model}` 和生成偏好。任务只用当前模型；它所在的供应商或模型被关闭、移除时视为未配置，任务暂停。旧版单模型配置在读取时升级为一个供应商。OpenAI 格式的 Base URL 含版本（`…/v1` + `/chat/completions`），Anthropic 格式不含（+ `/v1/messages`）。新鲜度仍只比较模型 ID。
+config.json 保存供应商列表（名称、开关、API 格式、Base URL、密钥、模型及其开关）、默认模型 `{provider, model}` 和生成偏好。每个主题记录自己的模型（topics.provider/model）：新建时默认取默认模型，确认文件或重新规划时可以换；之后改默认模型不影响已有主题。v4 之前的主题 provider 为空，跟随默认模型。主题所选模型被关闭或删除时，它的任务失败并提示换模型；没有任何可用模型时队列暂停。旧版单模型配置在读取时升级为一个供应商。OpenAI 格式的 Base URL 含版本（`…/v1` + `/chat/completions`），Anthropic 格式不含（+ `/v1/messages`）。新鲜度比较主题所选模型的 ID。
 
 ## 生命周期
 
@@ -46,32 +46,32 @@ config.json 保存供应商列表（名称、开关、API 格式、Base URL、�
 
 无需登录：服务只监听 127.0.0.1，请求的 Host 必须是 `127.0.0.1:<端口>`，带 Origin 时必须同源，否则返回 403。
 
-| 路径                               | 用途                                                   |
-| ---------------------------------- | ------------------------------------------------------ |
-| GET /api/status                    | 服务状态                                               |
-| GET/PUT /api/config                | 脱敏读取（供应商、当前模型）/更新当前模型与生成偏好    |
-| POST /api/providers                | 添加供应商 `{name, format, baseUrl, apiKey?, models?}` |
-| PUT/DELETE /api/providers/:id      | 修改（字段可选，apiKey 省略则保留）/删除供应商         |
-| POST /api/providers/:id/test       | `{model}` 发送一个极短请求测试连接                     |
-| POST /api/providers/:id/discover   | 读取供应商 `/models` 列表（不保存）                    |
-| POST /api/pick-folder              | 在本机弹出系统文件夹选择框，返回所选绝对路径           |
-| GET /api/prompts                   | 全部系统提示词原文及随附内容说明                       |
-| GET/POST /api/projects             | 列表（含覆盖率、主题数）/注册并扫描                    |
-| POST /api/projects/:id/refresh     | 重新扫描                                               |
-| GET /api/projects/:id/files        | 文件清单与覆盖每个文件的主题                           |
-| GET /api/projects/:id/source?path= | 扫描范围内文件的当前源码（阅读器用）                   |
-| DELETE /api/projects/:id           | 移除项目及其主题/说明/任务（不触碰源码）               |
-| GET/POST /api/projects/:id/topics  | 主题列表/新建主题并开始规划 `{request, instructions?}` |
-| GET/DELETE /api/topics/:id         | 主题详情（文件、状态、导读）/删除主题及其说明          |
-| POST /api/topics/:id/plan          | 重新规划（未确认的主题）                               |
-| POST /api/topics/:id/confirm       | `{files: [{path, reason}], instructions?}` 确认并生成  |
-| POST /api/topics/:id/refresh       | 生成缺失或过期的说明                                   |
-| POST /api/topics/:id/run           | `{path, kind: generate 或 review}` 单文件重新生成/复查 |
-| GET /api/topics/:id/document?path= | 文件在该主题下的说明与新鲜状态                         |
-| GET /api/jobs                      | 最近 200 个任务（含主题名）                            |
-| POST /api/jobs/:id/cancel          | 取消                                                   |
-| GET /api/events                    | SSE 变更通知                                           |
-| POST /api/stop                     | 停止                                                   |
+| 路径                               | 用途                                                           |
+| ---------------------------------- | -------------------------------------------------------------- |
+| GET /api/status                    | 服务状态                                                       |
+| GET/PUT /api/config                | 脱敏读取（供应商、默认模型）/更新默认模型与生成偏好            |
+| POST /api/providers                | 添加供应商 `{name, format, baseUrl, apiKey?, models?}`         |
+| PUT/DELETE /api/providers/:id      | 修改（字段可选，apiKey 省略则保留）/删除供应商                 |
+| POST /api/providers/:id/test       | `{model}` 发送一个极短请求测试连接                             |
+| POST /api/providers/:id/discover   | 读取供应商 `/models` 列表（不保存）                            |
+| POST /api/pick-folder              | 在本机弹出系统文件夹选择框，返回所选绝对路径                   |
+| GET /api/prompts                   | 全部系统提示词原文及随附内容说明                               |
+| GET/POST /api/projects             | 列表（含覆盖率、主题数）/注册并扫描                            |
+| POST /api/projects/:id/refresh     | 重新扫描                                                       |
+| GET /api/projects/:id/files        | 文件清单与覆盖每个文件的主题                                   |
+| GET /api/projects/:id/source?path= | 扫描范围内文件的当前源码（阅读器用）                           |
+| DELETE /api/projects/:id           | 移除项目及其主题/说明/任务（不触碰源码）                       |
+| GET/POST /api/projects/:id/topics  | 主题列表/新建主题并开始规划 `{request, instructions?, model?}` |
+| GET/DELETE /api/topics/:id         | 主题详情（文件、状态、导读）/删除主题及其说明                  |
+| POST /api/topics/:id/plan          | 重新规划（未确认的主题）                                       |
+| POST /api/topics/:id/confirm       | `{files: [{path, reason}], instructions?, model?}` 确认并生成  |
+| POST /api/topics/:id/refresh       | 生成缺失或过期的说明                                           |
+| POST /api/topics/:id/run           | `{path, kind: generate 或 review}` 单文件重新生成/复查         |
+| GET /api/topics/:id/document?path= | 文件在该主题下的说明与新鲜状态                                 |
+| GET /api/jobs                      | 最近 200 个任务（含主题名）                                    |
+| POST /api/jobs/:id/cancel          | 取消                                                           |
+| GET /api/events                    | SSE 变更通知                                                   |
+| POST /api/stop                     | 停止                                                           |
 
 0.1 为开发协议，尚未承诺 API 向后兼容。未来发布稳定版前增加 /v1 路径、迁移和协议兼容测试。
 

@@ -1,6 +1,7 @@
 import { readFileSync, writeFileSync, renameSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 import { join } from "node:path";
+import type { ActiveModel } from "../../shared/api.js";
 import {
   defaultSettings,
   resolveModel,
@@ -57,9 +58,9 @@ export class ConfigStore {
     }
     return structuredClone(this.cached);
   }
-  /** The active model as jobs use it. */
-  get(): ModelConfig {
-    return resolveModel(this.settings());
+  /** A model as jobs use it: the given choice, or the default model. */
+  get(choice?: ActiveModel | null): ModelConfig {
+    return resolveModel(this.settings(), choice);
   }
   save(settings: Settings) {
     writeFileSync(this.path + ".tmp", JSON.stringify(settings, null, 2), {

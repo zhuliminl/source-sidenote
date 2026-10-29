@@ -1,4 +1,5 @@
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
+import type { ActiveModel } from "@shared/api";
 import { Loader2, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -12,7 +13,8 @@ import {
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { PromptBlock } from "@/components/prompt-block";
-import { useCreateTopic, usePrompts } from "@/lib/queries";
+import { ModelSelect } from "@/components/model-select";
+import { useConfig, useCreateTopic, usePrompts } from "@/lib/queries";
 
 const examples = [
   "一个请求从路由进来到写入数据库的完整链路",
@@ -34,7 +36,13 @@ export function CreateTopicDialog({
 }) {
   const [request, setRequest] = useState("");
   const [instructions, setInstructions] = useState("");
+  const config = useConfig();
+  const [model, setModel] = useState<ActiveModel | null>(null);
   const create = useCreateTopic(project);
+  // Start from the default model each time the dialog opens.
+  useEffect(() => {
+    if (open) setModel(config.data?.active ?? null);
+  }, [open, config.data?.active]);
   const prompts = usePrompts();
   const plan = prompts.data?.find((p) => p.id === "plan");
 
@@ -42,7 +50,7 @@ export function CreateTopicDialog({
     e.preventDefault();
     if (!request.trim() || create.isPending) return;
     create.mutate(
-      { request, instructions },
+      { request, instructions, ...(model ? { model } : {}) },
       {
         onSuccess: (t) => {
           setRequest("");
@@ -102,6 +110,15 @@ export function CreateTopicDialog({
               placeholder="例如：重点讲错误处理；我熟悉 React，不用解释基础概念"
             />
           </div>
+          <div className="space-y-2">
+            <Label htmlFor="topic-model">
+              模型
+              <span className="font-normal text-subtle-foreground">
+                规划和生成说明都用它，确认文件时还可以换
+              </span>
+            </Label>
+            <ModelSelect id="topic-model" value={model} onChange={setModel} />
+          </div>
           {plan && <PromptBlock prompt={plan} instructions={instructions} />}
           <DialogFooter>
             <Button
@@ -113,7 +130,7 @@ export function CreateTopicDialog({
             </Button>
             <Button
               type="submit"
-              disabled={!request.trim() || create.isPending}
+              disabled={!request.trim() || !model || create.isPending}
             >
               {create.isPending ? (
                 <Loader2 className="animate-spin" />

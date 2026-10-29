@@ -1,5 +1,5 @@
-import type { Job } from "../domain/model.js";
-import { PROMPT_VERSION } from "../domain/model.js";
+import type { Job, Topic } from "../domain/model.js";
+import { PROMPT_VERSION, topicModel } from "../domain/model.js";
 import type { Explanation } from "../shared/api.js";
 import {
   keepKnownRelations,
@@ -63,8 +63,15 @@ export class JobWorker {
 
   private pump() {
     if (this.stopped) return;
+    // Wait until some model is usable; each job then resolves its own topic's model.
+    const settings = this.deps.config.settings();
+    if (
+      !settings.providers.some(
+        (p) => p.enabled && p.models.some((m) => m.enabled),
+      )
+    )
+      return;
     const config = this.deps.config.get();
-    if (!config.model) return;
     let claimed = 0;
     while (this.active.size < config.concurrency) {
       const job = this.deps.jobs.claimNext();
@@ -112,11 +119,11 @@ export class JobWorker {
   }
 
   private async plan(job: Job, signal: AbortSignal) {
-    const { projects, files, topics, config } = this.deps;
+    const { projects, files, topics } = this.deps;
     const topic = topics.get(job.topic);
     const p = projects.get(job.project);
     const manifest = files.list(job.project);
-    const cfg = config.get();
+    const cfg = this.model(topic);
     const result = await completeJson(
       cfg,
       planMessages(
@@ -144,7 +151,7 @@ export class JobWorker {
   }
 
   private async explain(job: Job, signal: AbortSignal) {
-    const { projects, files, topics, docs, config } = this.deps;
+    const { projects, files, topics, docs } = this.deps;
     const topic = topics.get(job.topic);
     const chain = topics
       .files(job.topic)
@@ -156,7 +163,7 @@ export class JobWorker {
     if (!manifest.some((f) => f.path === job.path))
       throw new Error("File excluded or removed");
     const before = await snapshot(p.root, manifest, job.path);
-    const cfg = config.get();
+    const cfg = this.model(topic);
     const existing = docs.get(job.topic, job.path);
     if (
       job.kind === "review" &&
@@ -231,6 +238,12 @@ export class JobWorker {
     this.deps.events.changed("topics");
   }
 
+  private model(topic: Topic) {
+    const cfg = this.deps.config.get(topicModel(topic));
+    if (!cfg.model) throw new Error("主题所选模型已关闭或被删除，请换一个模型");
+    return cfg;
+  }
+
   /** The walkthrough is written once every file of the topic has an explanation. */
   private queueOverviewWhenComplete(job: Job) {
     const { topics, docs, jobs } = this.deps;
@@ -244,7 +257,7 @@ export class JobWorker {
   }
 
   private async overview(job: Job, signal: AbortSignal) {
-    const { topics, docs, config } = this.deps;
+    const { topics, docs } = this.deps;
     const topic = topics.get(job.topic);
     const explained = docs.listByTopic(job.topic);
     const files = topics.files(job.topic).flatMap((f) => {
@@ -257,7 +270,7 @@ export class JobWorker {
     });
     if (!files.length) throw new Error("No explanations to summarize yet");
     const result = await completeJson(
-      config.get(),
+      this.model(topic),
       overviewMessages(topic, files),
       signal,
     );

@@ -16,6 +16,7 @@ import type {
   SourceView,
   StatusView,
   TopicConfirm,
+  TopicReplan,
   TopicCreate,
   TopicSummary,
   TopicView,
@@ -85,8 +86,8 @@ export const api = {
   topic: (topic: string) => request<TopicView>("GET", `topics/${id(topic)}`),
   removeTopic: (topic: string) =>
     request<{ ok: true }>("DELETE", `topics/${id(topic)}`),
-  replan: (topic: string, instructions?: string) =>
-    request<TopicView>("POST", `topics/${id(topic)}/plan`, { instructions }),
+  replan: (topic: string, body: TopicReplan) =>
+    request<TopicView>("POST", `topics/${id(topic)}/plan`, body),
   confirmTopic: (topic: string, body: TopicConfirm) =>
     request<RunResult>("POST", `topics/${id(topic)}/confirm`, body),
   refreshTopic: (topic: string) =>
