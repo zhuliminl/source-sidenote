@@ -367,6 +367,11 @@ function Body({
       <p className="text-[15px] leading-7 text-pretty">
         <InlineMarkdown>{e.summary}</InlineMarkdown>
       </p>
+      {e.why && (
+        <p className="mt-2 text-muted-foreground text-pretty">
+          <InlineMarkdown>{e.why}</InlineMarkdown>
+        </p>
+      )}
       <p className="mt-2 text-xs text-subtle-foreground">
         {doc.model} · {timeAgo(doc.generated)}
       </p>
@@ -383,6 +388,22 @@ function Body({
         />
       )}
 
+      {(e.scenario?.length ?? 0) > 0 && (
+        <Section title="走一遍">
+          <ol className="space-y-2">
+            {e.scenario.map((step, i) => (
+              <li key={i} className="flex gap-3">
+                <span className="mt-1 flex size-5 shrink-0 items-center justify-center rounded-full bg-warning/15 text-[11px] text-muted-foreground tabular-nums">
+                  {i + 1}
+                </span>
+                <span>
+                  <InlineMarkdown>{step}</InlineMarkdown>
+                </span>
+              </li>
+            ))}
+          </ol>
+        </Section>
+      )}
       {e.flow.length > 0 && (
         <Section title="核心流程">
           <ol className="space-y-2">
@@ -400,6 +421,20 @@ function Body({
         </Section>
       )}
       <List title="职责" items={e.responsibilities} />
+      {(e.terms?.length ?? 0) > 0 && (
+        <Section title="术语">
+          <dl className="space-y-1.5">
+            {e.terms.map((t) => (
+              <div key={t.term}>
+                <dt className="inline font-medium">{t.term}</dt>
+                <dd className="inline text-muted-foreground">
+                  ：<InlineMarkdown>{t.meaning}</InlineMarkdown>
+                </dd>
+              </div>
+            ))}
+          </dl>
+        </Section>
+      )}
       <Section
         title="代码依据"
         hint="点击定位到代码，鼠标停在代码上会自动对应到这里"

@@ -78,6 +78,25 @@ export function validateExplanation(
   return {
     brief: typeof v.brief === "string" ? v.brief.trim().slice(0, 24) : "",
     summary: v.summary,
+    why: typeof v.why === "string" ? v.why.trim() : "",
+    scenario: isStringArray(v.scenario)
+      ? v.scenario
+          .map((s) => s.trim())
+          .filter(Boolean)
+          .slice(0, 10)
+      : [],
+    terms: Array.isArray(v.terms)
+      ? v.terms
+          .filter(
+            (t) =>
+              typeof t?.term === "string" &&
+              t.term.trim() &&
+              typeof t.meaning === "string" &&
+              t.meaning.trim(),
+          )
+          .slice(0, 12)
+          .map((t) => ({ term: t.term.trim(), meaning: t.meaning.trim() }))
+      : [],
     responsibilities: v.responsibilities,
     flow: v.flow,
     relations: v.relations.map(({ path, description }) => ({
@@ -135,9 +154,16 @@ export function renderMarkdown(e: Explanation, path: string): string {
     [
       `# ${path}`,
       e.summary,
+      ...(e.why ? [e.why] : []),
       ...(e.diagram ? [`\`\`\`mermaid\n${e.diagram}\n\`\`\``] : []),
-      `## 职责\n${list(e.responsibilities)}`,
+      ...(e.scenario?.length ? [`## 走一遍\n${list(e.scenario)}`] : []),
       `## 核心流程\n${list(e.flow)}`,
+      `## 职责\n${list(e.responsibilities)}`,
+      ...(e.terms?.length
+        ? [
+            `## 术语\n${list(e.terms.map((t) => `**${t.term}**：${t.meaning}`))}`,
+          ]
+        : []),
       `## 关联文件\n${list(e.relations.map((r) => `\`${r.path}\`：${r.description}`))}`,
       `## 阅读注意\n${list(e.caveats)}`,
       `## 代码依据\n${list(e.evidence.map((r) => `L${r.start}–L${r.end}：${r.explanation}`))}`,

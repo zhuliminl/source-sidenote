@@ -38,6 +38,12 @@ export interface Explanation {
   /** A few words naming what the file is for, shown when hovering it; empty in older explanations. */
   brief: string;
   summary: string;
+  /** Why the topic needs this file; empty in older explanations. */
+  why: string;
+  /** One concrete scenario walked through step by step; empty in older explanations. */
+  scenario: string[];
+  /** Project-specific terms explained in plain words; empty in older explanations. */
+  terms: { term: string; meaning: string }[];
   responsibilities: string[];
   flow: string[];
   relations: { path: string; description: string }[];
