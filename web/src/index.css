@@ -144,3 +144,18 @@
   font-style: var(--shiki-dark-font-style);
   font-weight: var(--shiki-dark-font-weight);
 }
+
+/* Mermaid diagrams (components/diagram.tsx): fit the panel, scale up in the dialog. */
+.diagram svg {
+  display: block;
+  margin-inline: auto;
+  /* Shrink to fit, but never below 75% of the laid-out size: scroll instead. */
+  width: max(100%, calc(var(--diagram-width, 600px) * 0.75));
+  max-width: var(--diagram-width, 100%) !important;
+  height: auto;
+}
+.diagram-large svg {
+  width: 100%;
+  max-width: none !important;
+  max-height: 78vh;
+}

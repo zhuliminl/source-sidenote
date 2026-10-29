@@ -40,6 +40,7 @@ import { CodeViewer, type LineRange } from "./code-viewer";
 import { ExplanationPanel } from "./explanation-panel";
 import { ProjectOverview, topicStateLabel } from "./project-overview";
 import { TopicView } from "../topics/topic-view";
+import { TopicMinimap } from "../topics/topic-minimap";
 import { CreateTopicDialog } from "../topics/create-topic-dialog";
 
 function parseLines(value: string | null): LineRange | null {
@@ -121,14 +122,24 @@ function Reader({ project }: { project: ProjectSummary }) {
     // Only react to the topic disappearing, not to every URL change.
   }, [missingTopic]);
 
+  // Left column: navigation on top, the topic map pinned at the bottom.
   const tree = (className?: string) => (
-    <FileTree
-      projectId={project.id}
-      topic={topic}
-      selected={state.file}
-      onSelect={state.select}
-      className={className}
-    />
+    <div className={cn("flex min-h-0 flex-col", className)}>
+      <FileTree
+        projectId={project.id}
+        topic={topic}
+        selected={state.file}
+        onSelect={state.select}
+        className="min-h-0 flex-1"
+      />
+      {topic?.state === "confirmed" && (
+        <TopicMinimap
+          topic={topic}
+          current={state.file}
+          onSelect={state.select}
+        />
+      )}
+    </div>
   );
   const code = (file: string) => (
     <CodeViewer

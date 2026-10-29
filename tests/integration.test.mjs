@@ -382,6 +382,23 @@ test("unfinished jobs recover and SSE connections do not block shutdown", async 
     await rm(home, { recursive: true, force: true });
   }
 });
+test("diagrams are cleaned and broken ones dropped without rejecting the answer", () => {
+  assert.equal(
+    validateExplanation(
+      {
+        ...explanation,
+        diagram: '```mermaid\nflowchart TD\n  A["读"] --> B["写"]\n```',
+      },
+      2,
+    ).diagram,
+    'flowchart TD\n  A["读"] --> B["写"]',
+  );
+  assert.equal(
+    validateExplanation({ ...explanation, diagram: "<script>" }, 2).diagram,
+    "",
+  );
+  assert.equal(validateExplanation(explanation, 2).diagram, "");
+});
 test("invalid model evidence is rejected rather than counted as covered", async () => {
   assert.throws(
     () =>

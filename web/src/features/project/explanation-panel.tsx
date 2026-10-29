@@ -21,6 +21,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { InlineMarkdown } from "@/components/inline-markdown";
+import { Diagram } from "@/components/diagram";
 import {
   useDocument,
   useFiles,
@@ -313,8 +314,10 @@ function Body({
       <p className="mt-2 text-xs text-subtle-foreground">
         {doc.model} · {timeAgo(doc.generated)}
       </p>
+      {e.diagram && (
+        <Diagram code={e.diagram} title={doc.path} className="mt-5" />
+      )}
 
-      <List title="职责" items={e.responsibilities} />
       {e.flow.length > 0 && (
         <Section title="核心流程">
           <ol className="space-y-2">
@@ -331,6 +334,7 @@ function Body({
           </ol>
         </Section>
       )}
+      <List title="职责" items={e.responsibilities} />
       <Section title="代码依据" hint="点击定位到代码">
         <ul className="-mx-2 space-y-0.5">
           {e.evidence.map((ev, i) => {

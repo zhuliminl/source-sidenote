@@ -26,6 +26,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { InlineMarkdown } from "@/components/inline-markdown";
+import { Diagram } from "@/components/diagram";
 import { PromptBlock } from "@/components/prompt-block";
 import { StatusDot, fileStatusLabel } from "@/components/status-dot";
 import {
@@ -391,6 +392,13 @@ function Walkthrough({
             <p className="text-[15px] leading-7 text-pretty">
               <InlineMarkdown>{topic.overview.summary}</InlineMarkdown>
             </p>
+            {topic.overview.diagram && (
+              <Diagram
+                code={topic.overview.diagram}
+                title={`${topic.title} · 链路全景`}
+                className="mt-5"
+              />
+            )}
             <ol className="mt-5 space-y-1">
               {topic.overview.steps.map((s, i) => (
                 <li key={`${s.path}-${i}`}>
@@ -403,7 +411,14 @@ function Walkthrough({
                       {i + 1}
                     </span>
                     <span className="min-w-0 text-sm leading-6">
-                      <span className="block font-mono text-xs">{s.path}</span>
+                      <span className="flex flex-wrap items-baseline gap-x-2">
+                        {s.label && (
+                          <span className="font-medium">{s.label}</span>
+                        )}
+                        <span className="font-mono text-xs text-subtle-foreground">
+                          {s.path}
+                        </span>
+                      </span>
                       <span className="text-muted-foreground">
                         <InlineMarkdown>{s.description}</InlineMarkdown>
                       </span>

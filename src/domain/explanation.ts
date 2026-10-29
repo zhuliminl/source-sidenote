@@ -3,6 +3,23 @@ import type { Explanation, Review, TopicOverview } from "../shared/api.js";
 const isStringArray = (v: unknown): v is string[] =>
   Array.isArray(v) && v.every((s) => typeof s === "string");
 
+const DIAGRAM_TYPES =
+  /^(flowchart|graph|sequenceDiagram|classDiagram|stateDiagram(-v2)?)\b/;
+
+/**
+ * Diagrams are a bonus: a missing or obviously broken one is dropped instead of
+ * rejecting an otherwise valid answer. Syntax errors are caught when rendering.
+ */
+export function cleanDiagram(value: unknown): string {
+  if (typeof value !== "string") return "";
+  const text = value
+    .trim()
+    .replace(/^```(?:mermaid)?\s*/, "")
+    .replace(/\s*```$/, "")
+    .trim();
+  return DIAGRAM_TYPES.test(text) && text.length <= 6000 ? text : "";
+}
+
 /** Rejects model output that is malformed or cites lines outside the file. */
 export function validateExplanation(
   value: unknown,
@@ -48,6 +65,7 @@ export function validateExplanation(
       end,
       explanation,
     })),
+    diagram: cleanDiagram(v.diagram),
   };
 }
 
@@ -83,6 +101,7 @@ export function renderMarkdown(e: Explanation, path: string): string {
     [
       `# ${path}`,
       e.summary,
+      ...(e.diagram ? [`\`\`\`mermaid\n${e.diagram}\n\`\`\``] : []),
       `## 职责\n${list(e.responsibilities)}`,
       `## 核心流程\n${list(e.flow)}`,
       `## 关联文件\n${list(e.relations.map((r) => `\`${r.path}\`：${r.description}`))}`,
@@ -147,7 +166,15 @@ export function validateOverview(
     summary: v.summary,
     steps: v.steps
       .filter((s) => paths.has(s.path))
-      .map(({ path, description }) => ({ path, description })),
+      .map(({ path, label, description }) => ({
+        path,
+        label:
+          typeof label === "string" && label.trim()
+            ? label.trim().slice(0, 24)
+            : path.slice(path.lastIndexOf("/") + 1),
+        description,
+      })),
     caveats: v.caveats,
+    diagram: cleanDiagram(v.diagram),
   };
 }

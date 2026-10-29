@@ -41,12 +41,23 @@ export interface Explanation {
   relations: { path: string; description: string }[];
   caveats: string[];
   evidence: { start: number; end: number; explanation: string }[];
+  /** Mermaid source (flowchart or sequence diagram) of the file's role in the topic; may be empty. */
+  diagram: string;
+}
+
+export interface TopicStep {
+  path: string;
+  /** Short station name for the minimap, e.g. "HTTP 路由" or "Dubbo 接口". */
+  label: string;
+  description: string;
 }
 
 export interface TopicOverview {
   summary: string;
-  steps: { path: string; description: string }[];
+  steps: TopicStep[];
   caveats: string[];
+  /** Mermaid source of the whole chain; may be empty. */
+  diagram: string;
 }
 
 export interface Review {
