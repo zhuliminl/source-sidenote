@@ -23,6 +23,7 @@ export const queryClient = new QueryClient({
 });
 
 export const keys = {
+  status: ["status"] as const,
   config: ["config"] as const,
   prompts: ["prompts"] as const,
   projects: ["projects"] as const,
@@ -37,6 +38,13 @@ export const keys = {
     ["topics", topic, "document", path] as const,
   jobs: ["jobs"] as const,
 };
+
+export const useStatus = () =>
+  useQuery({ queryKey: keys.status, queryFn: api.status, staleTime: Infinity });
+
+export function usePickFolder() {
+  return useMutation({ mutationFn: api.pickFolder });
+}
 
 export const useConfig = () =>
   useQuery({ queryKey: keys.config, queryFn: api.config });

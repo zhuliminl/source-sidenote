@@ -8,6 +8,7 @@ import type {
   FileEntry,
   JobView,
   ProjectSummary,
+  PickFolderResult,
   PromptView,
   RunResult,
   SourceView,
@@ -18,6 +19,11 @@ import type {
 import type { Container } from "../../application/container.js";
 import type { ChangeTopic } from "../../application/events.js";
 import { VERSION } from "../../version.js";
+import { badRequest, conflict } from "../../domain/errors.js";
+import {
+  canPickFolder,
+  pickFolder,
+} from "../../infrastructure/folder-picker.js";
 
 const idParams = z.object({ id: z.string().min(1) });
 const addBody = z.object({ root: z.string().min(1) });
@@ -51,7 +57,16 @@ export function registerRoutes(
   app.get("/api/status", async (): Promise<StatusView> => ({
     name: "source-sidenote",
     version: VERSION,
+    canPickFolder: canPickFolder(),
   }));
+  app.post("/api/pick-folder", async (): Promise<PickFolderResult> => {
+    if (!canPickFolder()) throw badRequest("此系统不支持选择文件夹");
+    try {
+      return { path: await pickFolder() };
+    } catch (e) {
+      throw conflict((e as Error).message);
+    }
+  });
   app.post("/api/stop", async () => {
     setTimeout(shutdown, 100);
     return { ok: true };

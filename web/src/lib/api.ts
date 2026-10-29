@@ -5,6 +5,7 @@ import type {
   DocumentView,
   FileEntry,
   JobView,
+  PickFolderResult,
   ProjectSummary,
   PromptView,
   RunResult,
@@ -45,6 +46,7 @@ const id = encodeURIComponent;
 
 export const api = {
   status: () => request<StatusView>("GET", "status"),
+  pickFolder: () => request<PickFolderResult>("POST", "pick-folder", {}),
   config: () => request<ConfigView>("GET", "config"),
   saveConfig: (c: ConfigUpdate) => request<{ ok: true }>("PUT", "config", c),
   projects: () => request<ProjectSummary[]>("GET", "projects"),

@@ -46,6 +46,7 @@ editors/neovim      仅负责编辑器显示与 CLI 调用
 | ---------------------------------- | ------------------------------------------------------ |
 | GET /api/status                    | 服务状态                                               |
 | GET/PUT /api/config                | 脱敏读取/更新模型配置                                  |
+| POST /api/pick-folder              | 在本机弹出系统文件夹选择框，返回所选绝对路径           |
 | GET /api/prompts                   | 全部系统提示词原文及随附内容说明                       |
 | GET/POST /api/projects             | 列表（含覆盖率、主题数）/注册并扫描                    |
 | POST /api/projects/:id/refresh     | 重新扫描                                               |

@@ -1,9 +1,22 @@
 import { useState, type FormEvent } from "react";
 import { Link, useNavigate } from "react-router";
-import { ArrowUp, ChevronRight, Folder, Loader2, Plug } from "lucide-react";
+import {
+  ArrowUp,
+  ChevronRight,
+  Folder,
+  FolderOpen,
+  Loader2,
+  Plug,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useUi } from "@/components/layout/ui-state";
-import { useAddProject, useConfig, useProjects } from "@/lib/queries";
+import {
+  useAddProject,
+  useConfig,
+  usePickFolder,
+  useProjects,
+  useStatus,
+} from "@/lib/queries";
 import { percent } from "@/lib/format";
 
 export function HomePage() {
@@ -15,17 +28,33 @@ export function HomePage() {
   const { openSettings } = useUi();
   const needsModel = config.data && !config.data.model;
 
-  const submit = (e: FormEvent) => {
-    e.preventDefault();
-    const value = root.trim();
-    if (!value || add.isPending) return;
+  const status = useStatus();
+  const pick = usePickFolder();
+
+  const addProject = (value: string) =>
     add.mutate(value, {
       onSuccess: (r) => {
         setRoot("");
         navigate(`/projects/${r.project.id}`);
       },
     });
+
+  const submit = (e: FormEvent) => {
+    e.preventDefault();
+    const value = root.trim();
+    if (!value || add.isPending) return;
+    addProject(value);
   };
+
+  // The service shows the OS dialog: browsers never expose a folder's absolute path.
+  const chooseFolder = () =>
+    pick.mutate(undefined, {
+      onSuccess: ({ path }) => {
+        if (!path) return;
+        setRoot(path);
+        addProject(path);
+      },
+    });
 
   return (
     <div className="flex flex-1 flex-col items-center justify-center overflow-y-auto px-4 pt-16 pb-[14vh]">
@@ -50,7 +79,26 @@ export function HomePage() {
           onSubmit={submit}
           className="flex items-center gap-2 rounded-[28px] bg-composer p-2 pl-5 shadow-composer transition-shadow focus-within:shadow-[0_0_0_1px_var(--ring),0_4px_16px_rgb(0_0_0/0.06)]"
         >
-          <Folder className="size-[18px] shrink-0 text-subtle-foreground" />
+          {status.data?.canPickFolder ? (
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              onClick={chooseFolder}
+              disabled={pick.isPending || add.isPending}
+              aria-label="选择文件夹"
+              title="选择文件夹"
+              className="-ml-2.5 size-9 shrink-0 text-muted-foreground"
+            >
+              {pick.isPending ? (
+                <Loader2 className="size-[18px] animate-spin" />
+              ) : (
+                <FolderOpen className="size-[18px]" />
+              )}
+            </Button>
+          ) : (
+            <Folder className="size-[18px] shrink-0 text-subtle-foreground" />
+          )}
           <label htmlFor="project-root" className="sr-only">
             本地项目路径
           </label>
@@ -58,7 +106,7 @@ export function HomePage() {
             id="project-root"
             value={root}
             onChange={(e) => setRoot(e.target.value)}
-            placeholder="粘贴本地项目的绝对路径，例如 /Users/me/projects/app"
+            placeholder="选择文件夹，或粘贴项目的绝对路径"
             autoComplete="off"
             spellCheck={false}
             autoFocus

@@ -172,6 +172,13 @@ export interface AddProjectResult {
 export interface StatusView {
   name: "source-sidenote";
   version: string;
+  /** Whether the service can show the OS folder dialog (POST /api/pick-folder). */
+  canPickFolder: boolean;
+}
+
+export interface PickFolderResult {
+  /** Absolute path, or null when the user cancelled. */
+  path: string | null;
 }
 
 export interface ApiError {
