@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useParams, useSearchParams } from "react-router";
+import { useDefaultLayout } from "react-resizable-panels";
 import {
   ArrowLeft,
   Check,
@@ -50,6 +51,22 @@ function parseLines(value: string | null): LineRange | null {
   const start = Number(m[1]);
   return { start, end: Math.max(start, Number(m[2] ?? m[1])) };
 }
+
+/** localStorage that tolerates private windows and blocked site data. */
+const safeStorage = {
+  getItem(key: string) {
+    try {
+      return localStorage.getItem(key);
+    } catch {
+      return null;
+    }
+  },
+  setItem(key: string, value: string) {
+    try {
+      localStorage.setItem(key, value);
+    } catch {}
+  },
+};
 
 /** Reader state lives in the URL (?topic=…&file=…&lines=12-30) so views can be linked and revisited. */
 function useReaderState() {
@@ -114,6 +131,15 @@ function Reader({ project }: { project: ProjectSummary }) {
   const topic = topicQuery.data ?? null;
   const [creating, setCreating] = useState(false);
   const wide = useMediaQuery("(min-width: 1100px)");
+  // Remember the column widths the reader dragged to, separately for reading and overview.
+  const layout = useDefaultLayout({
+    id: "sidenote-reader",
+    panelIds: state.file
+      ? ["tree", "code", "explanation"]
+      : ["tree", "overview"],
+    onlySaveAfterUserInteractions: true,
+    storage: safeStorage,
+  });
   const medium = useMediaQuery("(min-width: 768px)");
 
   // A deleted or unknown topic in the URL falls back to the project view.
@@ -229,7 +255,13 @@ function Reader({ project }: { project: ProjectSummary }) {
           />
         )}
         {wide ? (
-          <ResizablePanelGroup orientation="horizontal">
+          <ResizablePanelGroup
+            // Remount when the panel set changes so each arrangement restores its own saved widths.
+            key={state.file ? "reading" : "overview"}
+            orientation="horizontal"
+            defaultLayout={layout.defaultLayout}
+            onLayoutChanged={layout.onLayoutChanged}
+          >
             <ResizablePanel
               id="tree"
               defaultSize={264}

@@ -61,6 +61,49 @@ function stationsOf(topic: TopicView): TopicStep[] {
 
 type Mode = "line" | "graph";
 
+interface Size {
+  w: number;
+  h: number;
+}
+const defaultSize: Record<Mode, Size> = {
+  line: { w: 400, h: 500 },
+  graph: { w: 580, h: 540 },
+};
+const MIN: Size = { w: 300, h: 240 };
+
+/** A size the reader drags from the top-right corner; remembered per map mode. */
+function useResizable(key: string, fallback: Size, spot: Spot) {
+  const [size, setSize] = useState<Size>(() => storage.get(key, fallback));
+  useEffect(() => setSize(storage.get(key, fallback)), [key]);
+  const fit = (s: Size): Size => ({
+    w: Math.round(Math.max(MIN.w, Math.min(s.w, innerWidth - spot.left - 8))),
+    h: Math.round(
+      Math.max(MIN.h, Math.min(s.h, innerHeight - spot.bottom - 8)),
+    ),
+  });
+  const drag = useRef<{ x: number; y: number; from: Size } | null>(null);
+  const handle = {
+    onPointerDown(e: React.PointerEvent<HTMLElement>) {
+      if (e.button !== 0) return;
+      e.stopPropagation();
+      drag.current = { x: e.clientX, y: e.clientY, from: size };
+      e.currentTarget.setPointerCapture(e.pointerId);
+    },
+    onPointerMove(e: React.PointerEvent<HTMLElement>) {
+      const d = drag.current;
+      if (!d) return;
+      setSize(
+        fit({ w: d.from.w + e.clientX - d.x, h: d.from.h - (e.clientY - d.y) }),
+      );
+    },
+    onPointerUp() {
+      if (drag.current) setSize((s) => (storage.set(key, s), s));
+      drag.current = null;
+    },
+  };
+  return { size: fit(size), handle };
+}
+
 interface Spot {
   left: number;
   bottom: number;
@@ -168,6 +211,11 @@ export function TopicMinimap({
   // Default: the window's bottom-left corner, just above the sidebar's settings row.
   const float = useDraggable("sidenote-map-spot", { left: 12, bottom: 60 });
   const { refit } = float;
+  const size = useResizable(
+    `sidenote-map-size:${mode}`,
+    defaultSize[mode],
+    float.spot,
+  );
   useEffect(() => {
     const id = requestAnimationFrame(refit);
     return () => cancelAnimationFrame(id);
@@ -210,14 +258,28 @@ export function TopicMinimap({
         <section
           ref={float.el}
           aria-label="主题地图"
-          style={float.spot}
-          className={cn(
-            "fixed z-40 flex flex-col overflow-hidden rounded-2xl border bg-popover shadow-xl animate-in fade-in-0 zoom-in-95",
-            mode === "graph"
-              ? "h-[min(480px,75vh)] w-[min(480px,calc(100vw-1.5rem))]"
-              : "max-h-[min(460px,70vh)] w-[min(360px,calc(100vw-1.5rem))]",
-          )}
+          style={{ ...float.spot, width: size.size.w, height: size.size.h }}
+          className="fixed z-40 flex flex-col overflow-hidden rounded-2xl border bg-popover shadow-xl animate-in fade-in-0 zoom-in-95"
         >
+          {/* Anchored bottom-left, so the card grows from its top-right corner. */}
+          <div
+            {...size.handle}
+            aria-hidden
+            title="拖动调整大小"
+            className="group/resize absolute top-0 right-0 z-10 flex size-3.5 cursor-nesw-resize touch-none items-start justify-end"
+          >
+            <svg
+              viewBox="0 0 10 10"
+              className="m-0.5 size-2.5 text-subtle-foreground opacity-50 group-hover/resize:opacity-100"
+            >
+              <path
+                d="M2 1 H9 V8 M5 1 H9 V5"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.2"
+              />
+            </svg>
+          </div>
           <header
             {...float.handle}
             title="拖动可移动位置"
