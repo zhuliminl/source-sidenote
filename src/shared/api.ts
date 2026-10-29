@@ -156,23 +156,69 @@ export interface JobView {
   updated: string | null;
 }
 
-export interface ConfigView {
+/** Wire protocol of a model provider. */
+export type ApiFormat = "openai-chat" | "anthropic-messages";
+
+export interface ProviderModel {
+  id: string;
+  enabled: boolean;
+}
+
+export interface ProviderView {
+  id: string;
+  name: string;
+  enabled: boolean;
+  format: ApiFormat;
   baseUrl: string;
-  model: string;
   hasApiKey: boolean;
+  models: ProviderModel[];
+}
+
+/** The one model every job uses. */
+export interface ActiveModel {
+  provider: string;
+  model: string;
+}
+
+export interface ConfigView {
+  providers: ProviderView[];
+  active: ActiveModel | null;
+  /** The active model's id, or "" when it is missing or switched off. */
+  model: string;
   concurrency: number;
   maxFilesPerTopic: number;
   timeoutMs: number;
 }
 
 export interface ConfigUpdate {
-  baseUrl: string;
-  model: string;
-  /** Omit to keep the stored key; empty string clears it. */
-  apiKey?: string;
+  active?: ActiveModel | null;
   concurrency?: number;
   maxFilesPerTopic?: number;
   timeoutMs?: number;
+}
+
+export interface ProviderInput {
+  name?: string;
+  enabled?: boolean;
+  format?: ApiFormat;
+  baseUrl?: string;
+  /** Omit to keep the stored key; empty string clears it. */
+  apiKey?: string;
+  models?: ProviderModel[];
+}
+
+export interface ProviderCreated {
+  id: string;
+}
+
+export interface ModelTest {
+  ok: boolean;
+  ms: number;
+  error: string | null;
+}
+
+export interface ModelDiscovery {
+  models: string[];
 }
 
 export interface RunResult {

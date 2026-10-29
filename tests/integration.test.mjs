@@ -48,6 +48,33 @@ test("scanner excludes dependencies, secrets, ignored files and symlinks", async
     await rm(root, { recursive: true, force: true });
   }
 });
+test("a single-model config from older versions becomes a provider", async () => {
+  const home = await mkdtemp(join(tmpdir(), "sidenote-upgrade-"));
+  let server;
+  try {
+    await writeFile(
+      join(home, "config.json"),
+      JSON.stringify({
+        baseUrl: "http://127.0.0.1:9/v1",
+        model: "old-model",
+        apiKey: "k",
+        concurrency: 3,
+      }),
+    );
+    server = await createServer(home, 0);
+    const config = await (await fetch(server.url + "/api/config")).json();
+    assert.equal(config.model, "old-model");
+    assert.equal(config.concurrency, 3);
+    assert.deepEqual(config.providers[0].models, [
+      { id: "old-model", enabled: true },
+    ]);
+    assert.equal(config.providers[0].hasApiKey, true);
+    assert.equal(config.active.provider, config.providers[0].id);
+  } finally {
+    await server?.app.close();
+    await rm(home, { recursive: true, force: true });
+  }
+});
 test("topics: plan, confirm, explain, overview, review, staleness, cancellation, restart and delete", async () => {
   const home = await mkdtemp(join(tmpdir(), "sidenote-home-"));
   const root = await mkdtemp(join(tmpdir(), "sidenote-project-"));
@@ -59,9 +86,26 @@ test("topics: plan, confirm, explain, overview, review, staleness, cancellation,
   ];
   let server;
   const mock = httpServer(async (req, res) => {
+    res.setHeader("Content-Type", "application/json");
+    if (req.method === "GET" && req.url === "/v1/models")
+      return res.end(
+        JSON.stringify({ data: [{ id: "fixture" }, { id: "fixture-3" }] }),
+      );
     let text = "";
     for await (const chunk of req) text += chunk;
-    const system = JSON.parse(text).messages[0].content;
+    const body = JSON.parse(text);
+    const anthropic = req.url === "/v1/messages";
+    const system = anthropic ? body.system : body.messages[0].content;
+    const reply = (answer) =>
+      res.end(
+        JSON.stringify(
+          anthropic
+            ? { content: [{ type: "text", text: JSON.stringify(answer) }] }
+            : { choices: [{ message: { content: JSON.stringify(answer) } }] },
+        ),
+      );
+    // Connection tests from the settings page.
+    if (system.includes('"ok":true')) return reply({ ok: true });
     const kind = system.includes("挑选")
       ? "plan"
       : system.includes("导读")
@@ -84,12 +128,7 @@ test("topics: plan, confirm, explain, overview, review, staleness, cancellation,
       },
       review: { verdict: "pass", issues: [] },
     };
-    res.setHeader("Content-Type", "application/json");
-    res.end(
-      JSON.stringify({
-        choices: [{ message: { content: JSON.stringify(answers[kind]) } }],
-      }),
-    );
+    reply(answers[kind]);
   });
   await new Promise((r) => mock.listen(0, "127.0.0.1", r));
   const baseUrl = `http://127.0.0.1:${mock.address().port}/v1`;
@@ -118,13 +157,11 @@ test("topics: plan, confirm, explain, overview, review, staleness, cancellation,
       ).status,
       403,
     );
-    const insecure = await call(
-      "config",
-      { baseUrl: "http://example.com/v1", model: "x" },
-      "PUT",
-    );
-    assert.equal(insecure.status, 400);
-    assert.match(insecure.body.error, /HTTPS/);
+    const invalid = await call("providers", {
+      name: "x",
+      baseUrl: "http://user:pass@example.com/v1",
+    });
+    assert.equal(invalid.status, 400);
 
     // Adding a project only scans it: no model calls, nothing explained.
     const { project } = await api("projects", { root });
@@ -133,12 +170,47 @@ test("topics: plan, confirm, explain, overview, review, staleness, cancellation,
       (await call(`projects/${id}/topics`, { request: "x" })).status,
       400,
     );
+    const { id: provider } = await api("providers", {
+      name: "fixture",
+      baseUrl,
+      apiKey: "never-echo-this",
+      models: [
+        { id: "fixture", enabled: true },
+        { id: "fixture-2", enabled: true },
+      ],
+    });
+    // Only a model listed under the provider can become active.
+    assert.equal(
+      (await call("config", { active: { provider, model: "unlisted" } }, "PUT"))
+        .status,
+      400,
+    );
     await api(
       "config",
-      { baseUrl, model: "fixture", apiKey: "never-echo-this", concurrency: 1 },
+      { active: { provider, model: "fixture" }, concurrency: 1 },
       "PUT",
     );
-    assert.ok(!JSON.stringify(await api("config")).includes("never-echo-this"));
+    const config = await api("config");
+    assert.ok(!JSON.stringify(config).includes("never-echo-this"));
+    assert.equal(config.model, "fixture");
+    assert.equal(config.providers[0].hasApiKey, true);
+    assert.deepEqual(await api(`providers/${provider}/discover`, {}), {
+      models: ["fixture", "fixture-3"],
+    });
+    const ping = await api(`providers/${provider}/test`, { model: "fixture" });
+    assert.equal(ping.ok, true);
+
+    // Anthropic-style providers get the Messages protocol.
+    const { id: claude } = await api("providers", {
+      name: "messages",
+      format: "anthropic-messages",
+      baseUrl: baseUrl.replace(/\/v1$/, ""),
+    });
+    assert.equal(
+      (await api(`providers/${claude}/test`, { model: "any" })).ok,
+      true,
+    );
+    await api(`providers/${claude}`, undefined, "DELETE");
     assert.deepEqual((await api("projects"))[0], {
       ...project,
       total: 2,
@@ -257,10 +329,10 @@ test("topics: plan, confirm, explain, overview, review, staleness, cancellation,
     await until(async () => (await api(doc)).status === "fresh");
 
     // Switching models marks earlier explanations for regeneration.
-    await api("config", { baseUrl, model: "fixture-2" }, "PUT");
+    await api("config", { active: { provider, model: "fixture-2" } }, "PUT");
     assert.equal((await api(doc)).status, "stale");
     assert.equal((await api(`topics/${topic.id}`)).entries[0].status, "stale");
-    await api("config", { baseUrl, model: "fixture" }, "PUT");
+    await api("config", { active: { provider, model: "fixture" } }, "PUT");
 
     const source = await api(`projects/${id}/source?path=hello.ts`);
     assert.equal(source.content, "export const hello = () => 3;\n");

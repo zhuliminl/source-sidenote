@@ -4,6 +4,9 @@ import { z } from "zod";
 import type {
   AddProjectResult,
   ConfigView,
+  ModelDiscovery,
+  ModelTest,
+  ProviderCreated,
   DocumentView,
   FileEntry,
   JobView,
@@ -77,6 +80,25 @@ export function registerRoutes(
     config.update(req.body);
     return { ok: true };
   });
+  app.post("/api/providers", async (req): Promise<ProviderCreated> =>
+    config.createProvider(req.body),
+  );
+  app.put<{ Params: { id: string } }>("/api/providers/:id", async (req) => {
+    config.updateProvider(req.params.id, req.body);
+    return { ok: true };
+  });
+  app.delete<{ Params: { id: string } }>("/api/providers/:id", async (req) => {
+    config.removeProvider(req.params.id);
+    return { ok: true };
+  });
+  app.post<{ Params: { id: string } }>(
+    "/api/providers/:id/test",
+    async (req): Promise<ModelTest> => config.test(req.params.id, req.body),
+  );
+  app.post<{ Params: { id: string } }>(
+    "/api/providers/:id/discover",
+    async (req): Promise<ModelDiscovery> => config.discover(req.params.id),
+  );
 
   app.get("/api/prompts", async (): Promise<PromptView[]> => topics.prompts());
 

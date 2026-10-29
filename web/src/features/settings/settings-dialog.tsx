@@ -2,10 +2,8 @@ import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import {
   Gauge,
   Loader2,
-  Lock,
   Monitor,
   Moon,
-  Plug,
   SlidersHorizontal,
   Sun,
 } from "lucide-react";
@@ -23,9 +21,8 @@ import { useTheme, type ThemePreference } from "@/hooks/use-theme";
 import { useConfig, useSaveConfig } from "@/lib/queries";
 import { cn } from "@/lib/utils";
 
-const tabs: { id: SettingsTab; label: string; icon: typeof Plug }[] = [
+const tabs: { id: SettingsTab; label: string; icon: typeof Gauge }[] = [
   { id: "general", label: "常规", icon: SlidersHorizontal },
-  { id: "model", label: "模型连接", icon: Plug },
   { id: "generation", label: "生成偏好", icon: Gauge },
 ];
 
@@ -45,7 +42,7 @@ export function SettingsDialog({
           设置
         </DialogTitle>
         <DialogDescription className="sr-only">
-          外观、模型连接与生成偏好
+          外观与生成偏好
         </DialogDescription>
         <div className="flex min-h-[420px] max-sm:flex-col">
           <nav className="flex shrink-0 gap-0.5 p-2 sm:w-44 sm:flex-col max-sm:border-b">
@@ -66,11 +63,7 @@ export function SettingsDialog({
             ))}
           </nav>
           <div className="min-w-0 flex-1 px-6 pb-6">
-            {tab === "general" ? (
-              <GeneralSettings />
-            ) : (
-              tab && <ConfigForm tab={tab} />
-            )}
+            {tab === "general" ? <GeneralSettings /> : tab && <ConfigForm />}
           </div>
         </div>
       </DialogContent>
@@ -108,22 +101,21 @@ function GeneralSettings() {
   );
 }
 
-type Draft = Omit<ConfigView, "hasApiKey"> & { apiKey: string };
+type Draft = Pick<ConfigView, "concurrency" | "maxFilesPerTopic" | "timeoutMs">;
 
-/** One form for both config tabs so switching tabs keeps unsaved edits. */
-function ConfigForm({ tab }: { tab: Exclude<SettingsTab, "general"> }) {
+function ConfigForm() {
   const config = useConfig();
   const save = useSaveConfig();
   const [draft, setDraft] = useState<Draft | null>(null);
 
   useEffect(() => {
     if (config.data && !draft) {
-      const { hasApiKey: _, ...rest } = config.data;
-      setDraft({ ...rest, apiKey: "" });
+      const { concurrency, maxFilesPerTopic, timeoutMs } = config.data;
+      setDraft({ concurrency, maxFilesPerTopic, timeoutMs });
     }
   }, [config.data, draft]);
 
-  if (!draft || !config.data)
+  if (!draft)
     return (
       <div className="flex h-40 items-center justify-center">
         <Loader2 className="size-5 animate-spin text-subtle-foreground" />
@@ -134,83 +126,39 @@ function ConfigForm({ tab }: { tab: Exclude<SettingsTab, "general"> }) {
     setDraft({ ...draft, [key]: value });
   const submit = (e: FormEvent) => {
     e.preventDefault();
-    const { apiKey, ...rest } = draft;
-    // An empty key field means "keep the stored key".
-    save.mutate(apiKey ? { ...rest, apiKey } : rest, {
-      onSuccess: () => set("apiKey", ""),
-    });
+    save.mutate(draft);
   };
 
   return (
     <form onSubmit={submit} className="flex h-full flex-col">
-      <div className={cn(tab !== "model" && "hidden")}>
-        <Row label="接口地址" hint="OpenAI Chat Completions 兼容接口">
-          <Field
-            type="url"
-            required
-            value={draft.baseUrl}
-            onChange={(v) => set("baseUrl", v)}
-            placeholder="https://api.example.com/v1"
-          />
-        </Row>
-        <Row label="模型" hint="服务商提供的模型 ID">
-          <Field
-            required
-            value={draft.model}
-            onChange={(v) => set("model", v)}
-            placeholder="例如 gpt-5.5-mini"
-          />
-        </Row>
-        <Row
-          label="API 密钥"
-          hint={
-            config.data.hasApiKey ? "已保存，留空则保持不变" : "本地模型可留空"
-          }
-        >
-          <Field
-            type="password"
-            autoComplete="new-password"
-            value={draft.apiKey}
-            onChange={(v) => set("apiKey", v)}
-            placeholder={config.data.hasApiKey ? "••••••••" : "sk-…"}
-          />
-        </Row>
-        <p className="mt-5 flex gap-2 text-xs leading-5 text-subtle-foreground">
-          <Lock className="mt-0.5 size-3.5 shrink-0" />
-          密钥以 0600
-          权限保存在本机配置文件中，不会回传浏览器。使用云端模型时，纳入范围的代码会发送给对应服务商。
-        </p>
-      </div>
-      <div className={cn(tab !== "generation" && "hidden")}>
-        <Row label="并发请求" hint="同时进行的模型请求，1–4">
-          <NumberField
-            value={draft.concurrency}
-            min={1}
-            max={4}
-            onChange={(v) => set("concurrency", v)}
-          />
-        </Row>
-        <Row label="每个主题的文件上限" hint="规划时 AI 最多挑选的文件数，1–60">
-          <NumberField
-            value={draft.maxFilesPerTopic}
-            min={1}
-            max={60}
-            onChange={(v) => set("maxFilesPerTopic", v)}
-          />
-        </Row>
-        <Row label="请求超时" hint="毫秒，1,000–180,000">
-          <NumberField
-            value={draft.timeoutMs}
-            min={1000}
-            max={180000}
-            step={1000}
-            onChange={(v) => set("timeoutMs", v)}
-          />
-        </Row>
-        <p className="mt-5 text-xs leading-5 text-subtle-foreground">
-          这些是请求范围限制，不是费用预算保证。
-        </p>
-      </div>
+      <Row label="并发请求" hint="同时进行的模型请求，1–4">
+        <NumberField
+          value={draft.concurrency}
+          min={1}
+          max={4}
+          onChange={(v) => set("concurrency", v)}
+        />
+      </Row>
+      <Row label="每个主题的文件上限" hint="规划时 AI 最多挑选的文件数，1–60">
+        <NumberField
+          value={draft.maxFilesPerTopic}
+          min={1}
+          max={60}
+          onChange={(v) => set("maxFilesPerTopic", v)}
+        />
+      </Row>
+      <Row label="请求超时" hint="毫秒，1,000–180,000">
+        <NumberField
+          value={draft.timeoutMs}
+          min={1000}
+          max={180000}
+          step={1000}
+          onChange={(v) => set("timeoutMs", v)}
+        />
+      </Row>
+      <p className="mt-5 text-xs leading-5 text-subtle-foreground">
+        这些是请求范围限制，不是费用预算保证。模型供应商在左侧栏“模型”页管理。
+      </p>
       <div className="mt-auto flex justify-end pt-8">
         <Button type="submit" disabled={save.isPending}>
           {save.isPending && <Loader2 className="animate-spin" />}
@@ -240,23 +188,6 @@ function Row({
       </div>
       <div className="shrink-0 sm:w-64">{children}</div>
     </div>
-  );
-}
-
-function Field({
-  onChange,
-  ...props
-}: Omit<React.ComponentProps<"input">, "onChange"> & {
-  onChange: (v: string) => void;
-}) {
-  return (
-    <Input
-      {...props}
-      spellCheck={false}
-      autoComplete={props.autoComplete ?? "off"}
-      onChange={(e) => onChange(e.target.value)}
-      className="h-9 rounded-lg bg-transparent"
-    />
   );
 }
 

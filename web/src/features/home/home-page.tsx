@@ -9,7 +9,6 @@ import {
   Plug,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useUi } from "@/components/layout/ui-state";
 import {
   useAddProject,
   useConfig,
@@ -25,7 +24,6 @@ export function HomePage() {
   const navigate = useNavigate();
   const config = useConfig();
   const projects = useProjects();
-  const { openSettings } = useUi();
   const needsModel = config.data && !config.data.model;
 
   const status = useStatus();
@@ -66,7 +64,7 @@ export function HomePage() {
         {needsModel && (
           <button
             type="button"
-            onClick={() => openSettings("model")}
+            onClick={() => navigate("/models")}
             className="mx-auto mb-4 flex items-center gap-2 rounded-full border px-3.5 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
           >
             <Plug className="size-3.5" />

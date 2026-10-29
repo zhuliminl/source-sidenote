@@ -2,6 +2,10 @@ import type {
   AddProjectResult,
   ConfigUpdate,
   ConfigView,
+  ModelDiscovery,
+  ModelTest,
+  ProviderCreated,
+  ProviderInput,
   DocumentView,
   FileEntry,
   JobView,
@@ -49,6 +53,16 @@ export const api = {
   pickFolder: () => request<PickFolderResult>("POST", "pick-folder", {}),
   config: () => request<ConfigView>("GET", "config"),
   saveConfig: (c: ConfigUpdate) => request<{ ok: true }>("PUT", "config", c),
+  createProvider: (p: ProviderInput) =>
+    request<ProviderCreated>("POST", "providers", p),
+  updateProvider: (provider: string, p: ProviderInput) =>
+    request<{ ok: true }>("PUT", `providers/${id(provider)}`, p),
+  removeProvider: (provider: string) =>
+    request<{ ok: true }>("DELETE", `providers/${id(provider)}`),
+  testModel: (provider: string, model: string) =>
+    request<ModelTest>("POST", `providers/${id(provider)}/test`, { model }),
+  discoverModels: (provider: string) =>
+    request<ModelDiscovery>("POST", `providers/${id(provider)}/discover`, {}),
   projects: () => request<ProjectSummary[]>("GET", "projects"),
   addProject: (root: string) =>
     request<AddProjectResult>("POST", "projects", { root }),

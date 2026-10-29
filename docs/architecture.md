@@ -26,6 +26,10 @@ editors/neovim      仅负责编辑器显示与 CLI 调用
 
 规划上下文是文件清单（仅路径）和 README/构建文件；解释上下文是主题、主题文件的阅读顺序与入选理由、当前源码和可解析的直接导入片段。上下文指纹只覆盖直接依赖（路径 + 内容哈希）：新增无关文件或修改 README 不会让整个项目的说明失效。不声称完成完整架构分析；依赖解析目前不支持 tsconfig aliases、Java wildcard、继承/反射或间接调用。
 
+## 模型配置
+
+config.json 保存供应商列表（名称、开关、API 格式、Base URL、密钥、模型及其开关）、当前模型 `{provider, model}` 和生成偏好。任务只用当前模型；它所在的供应商或模型被关闭、移除时视为未配置，任务暂停。旧版单模型配置在读取时升级为一个供应商。OpenAI 格式的 Base URL 含版本（`…/v1` + `/chat/completions`），Anthropic 格式不含（+ `/v1/messages`）。新鲜度仍只比较模型 ID。
+
 ## 生命周期
 
 `add → realpath → 扫描 → 更新清单`（不调用模型）
@@ -45,7 +49,11 @@ editors/neovim      仅负责编辑器显示与 CLI 调用
 | 路径                               | 用途                                                   |
 | ---------------------------------- | ------------------------------------------------------ |
 | GET /api/status                    | 服务状态                                               |
-| GET/PUT /api/config                | 脱敏读取/更新模型配置                                  |
+| GET/PUT /api/config                | 脱敏读取（供应商、当前模型）/更新当前模型与生成偏好    |
+| POST /api/providers                | 添加供应商 `{name, format, baseUrl, apiKey?, models?}` |
+| PUT/DELETE /api/providers/:id      | 修改（字段可选，apiKey 省略则保留）/删除供应商         |
+| POST /api/providers/:id/test       | `{model}` 发送一个极短请求测试连接                     |
+| POST /api/providers/:id/discover   | 读取供应商 `/models` 列表（不保存）                    |
 | POST /api/pick-folder              | 在本机弹出系统文件夹选择框，返回所选绝对路径           |
 | GET /api/prompts                   | 全部系统提示词原文及随附内容说明                       |
 | GET/POST /api/projects             | 列表（含覆盖率、主题数）/注册并扫描                    |

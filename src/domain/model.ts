@@ -1,4 +1,12 @@
-import type { JobKind, JobState, Review, TopicState } from "../shared/api.js";
+import type {
+  ActiveModel,
+  ApiFormat,
+  JobKind,
+  JobState,
+  ProviderModel,
+  Review,
+  TopicState,
+} from "../shared/api.js";
 
 export interface Project {
   id: string;
@@ -64,23 +72,79 @@ export interface Job {
   updated: string | null;
 }
 
-export interface ModelConfig {
+export interface Provider {
+  id: string;
+  name: string;
+  enabled: boolean;
+  format: ApiFormat;
   baseUrl: string;
-  model: string;
   apiKey: string;
+  models: ProviderModel[];
+}
+
+/** What is stored in config.json. */
+export interface Settings {
+  providers: Provider[];
+  active: ActiveModel | null;
   concurrency: number;
   maxFilesPerTopic: number;
   timeoutMs: number;
 }
 
-export const defaultConfig: ModelConfig = {
-  baseUrl: "https://api.openai.com/v1",
-  model: "",
-  apiKey: "",
+/** How to reach one model. */
+export interface Connection {
+  format: ApiFormat;
+  baseUrl: string;
+  apiKey: string;
+  model: string;
+  timeoutMs: number;
+}
+
+/** The settings jobs run with: the active model resolved to a connection. */
+export type ModelConfig = Connection &
+  Pick<Settings, "concurrency" | "maxFilesPerTopic">;
+
+export const defaultSettings: Settings = {
+  providers: [],
+  active: null,
   concurrency: 2,
   maxFilesPerTopic: 15,
   timeoutMs: 60000,
 };
+
+export function connectionOf(
+  p: Provider,
+  model: string,
+  timeoutMs: number,
+): Connection {
+  return {
+    format: p.format,
+    baseUrl: p.baseUrl,
+    apiKey: p.apiKey,
+    model,
+    timeoutMs,
+  };
+}
+
+/** A missing or switched-off provider or model leaves model "", which pauses jobs. */
+export function resolveModel(s: Settings): ModelConfig {
+  const p = s.providers.find((p) => p.id === s.active?.provider);
+  const usable =
+    p?.enabled && p.models.some((m) => m.id === s.active!.model && m.enabled);
+  return {
+    ...(p
+      ? connectionOf(p, usable ? s.active!.model : "", s.timeoutMs)
+      : {
+          format: "openai-chat",
+          baseUrl: "",
+          apiKey: "",
+          model: "",
+          timeoutMs: s.timeoutMs,
+        }),
+    concurrency: s.concurrency,
+    maxFilesPerTopic: s.maxFilesPerTopic,
+  };
+}
 
 export const configLimits = {
   concurrency: [1, 4],

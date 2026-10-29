@@ -7,6 +7,7 @@ import {
 import { toast } from "sonner";
 import type {
   ConfigUpdate,
+  ProviderInput,
   RunResult,
   TopicConfirm,
   TopicCreate,
@@ -205,16 +206,53 @@ export function useCancelJob() {
   });
 }
 
-export function useSaveConfig() {
+function useConfigChanged() {
   const qc = useQueryClient();
+  return () => {
+    void qc.invalidateQueries({ queryKey: keys.config });
+    void qc.invalidateQueries({ queryKey: keys.prompts });
+    // Freshness depends on the active model.
+    void qc.invalidateQueries({ queryKey: keys.topicsRoot });
+  };
+}
+
+export function useSaveConfig({ quiet = false } = {}) {
+  const changed = useConfigChanged();
   return useMutation({
     mutationFn: (c: ConfigUpdate) => api.saveConfig(c),
     onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: keys.config });
-      void qc.invalidateQueries({ queryKey: keys.prompts });
-      // Freshness depends on the configured model.
-      void qc.invalidateQueries({ queryKey: keys.topicsRoot });
-      toast("设置已保存");
+      changed();
+      if (!quiet) toast("设置已保存");
     },
   });
+}
+
+export function useCreateProvider() {
+  const changed = useConfigChanged();
+  return useMutation({ mutationFn: api.createProvider, onSuccess: changed });
+}
+
+export function useUpdateProvider() {
+  const changed = useConfigChanged();
+  return useMutation({
+    mutationFn: ({ id, ...input }: ProviderInput & { id: string }) =>
+      api.updateProvider(id, input),
+    onSuccess: changed,
+  });
+}
+
+export function useRemoveProvider() {
+  const changed = useConfigChanged();
+  return useMutation({ mutationFn: api.removeProvider, onSuccess: changed });
+}
+
+export function useTestModel() {
+  return useMutation({
+    mutationFn: ({ provider, model }: { provider: string; model: string }) =>
+      api.testModel(provider, model),
+  });
+}
+
+export function useDiscoverModels() {
+  return useMutation({ mutationFn: api.discoverModels });
 }

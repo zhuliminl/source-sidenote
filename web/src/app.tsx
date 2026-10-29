@@ -7,6 +7,7 @@ import { HomePage } from "@/features/home/home-page";
 import { ProjectPage } from "@/features/project/project-page";
 import { JobsPage } from "@/features/jobs/jobs-page";
 import { PromptsPage } from "@/features/prompts/prompts-page";
+import { ModelsPage } from "@/features/models/models-page";
 import { queryClient } from "@/lib/queries";
 
 export function App() {
@@ -20,6 +21,7 @@ export function App() {
               <Route path="projects/:projectId" element={<ProjectPage />} />
               <Route path="jobs" element={<JobsPage />} />
               <Route path="prompts" element={<PromptsPage />} />
+              <Route path="models" element={<ModelsPage />} />
               <Route path="*" element={<HomePage />} />
             </Route>
           </Routes>

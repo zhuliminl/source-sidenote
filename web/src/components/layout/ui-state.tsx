@@ -6,7 +6,7 @@ export interface UiState {
   isMobile: boolean;
   openSettings: (tab?: SettingsTab) => void;
 }
-export type SettingsTab = "general" | "model" | "generation";
+export type SettingsTab = "general" | "generation";
 
 export const UiContext = createContext<UiState | null>(null);
 

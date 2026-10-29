@@ -32,7 +32,7 @@ export function AppShell() {
       sidebarOpen,
       setSidebarOpen: isMobile ? setMobileOpen : setDesktopOpen,
       isMobile,
-      openSettings: (tab = "model") => setSettings(tab),
+      openSettings: (tab = "general") => setSettings(tab),
     }),
     [sidebarOpen, isMobile],
   );

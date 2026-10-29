@@ -1,5 +1,6 @@
 import { Link, NavLink, useMatch } from "react-router";
 import {
+  Boxes,
   Ellipsis,
   ListChecks,
   ScrollText,
@@ -13,7 +14,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Logo } from "@/components/logo";
 import { ProjectActionsMenu } from "@/features/project/project-actions";
-import { useJobs, useProjects } from "@/lib/queries";
+import { useConfig, useJobs, useProjects } from "@/lib/queries";
 import { cn } from "@/lib/utils";
 import { SidebarToggle } from "./sidebar-toggle";
 import { useUi } from "./ui-state";
@@ -24,6 +25,7 @@ const rowClass =
 export function Sidebar() {
   const { openSettings } = useUi();
   const jobs = useJobs();
+  const config = useConfig();
   const active = jobs.data?.filter(
     (j) => j.state === "queued" || j.state === "running",
   ).length;
@@ -75,6 +77,20 @@ export function Sidebar() {
           <ScrollText className="size-4" />
           提示词
         </NavLink>
+        <NavLink
+          to="/models"
+          className={({ isActive }) =>
+            cn(rowClass, isActive && "bg-sidebar-accent")
+          }
+        >
+          <Boxes className="size-4" />
+          模型
+          {config.data && (
+            <span className="ml-auto max-w-28 truncate font-mono text-[11px] text-subtle-foreground">
+              {config.data.model || "未选择"}
+            </span>
+          )}
+        </NavLink>
       </div>
 
       <div className="mt-5 px-4 pb-1.5 text-xs font-medium text-subtle-foreground">
@@ -88,7 +104,7 @@ export function Sidebar() {
         <button
           type="button"
           className={rowClass}
-          onClick={() => openSettings("model")}
+          onClick={() => openSettings("general")}
         >
           <Settings className="size-4" />
           设置
