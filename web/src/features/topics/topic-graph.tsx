@@ -4,7 +4,6 @@ import type { TopicStep } from "@shared/api";
 import { FileHint } from "@/components/file-hint";
 import { cn } from "@/lib/utils";
 import { splitPath } from "@/lib/format";
-import { usePulse } from "@/hooks/use-pulse";
 
 interface Edge {
   a: number;
@@ -259,7 +258,6 @@ export function TopicGraph({
   });
 
   const here = stations.findIndex((s) => s.path === current);
-  const pulse = usePulse(here >= 0, current);
   const focus = hover ?? (here >= 0 ? here : null);
   const near = new Set<number>();
   if (focus !== null)
@@ -349,42 +347,33 @@ export function TopicGraph({
                 dim && "opacity-35",
               )}
             >
-              {isHere && pulse && (
-                <rect
-                  width={p.w}
-                  height={NODE_H}
-                  rx={8}
-                  className="svg-ripple fill-none stroke-foreground"
-                  strokeWidth={2}
-                />
-              )}
-              <g className={cn(isHere && pulse && "svg-pulse")}>
-                <rect
-                  width={p.w}
-                  height={NODE_H}
-                  rx={8}
-                  className={cn(
-                    isHere
-                      ? "fill-foreground stroke-foreground"
-                      : seen
-                        ? "fill-accent stroke-muted-foreground/50"
-                        : "fill-popover stroke-border",
-                    hover === i && !isHere && "stroke-foreground",
-                  )}
-                />
-                <text
-                  x={p.w / 2}
-                  y={NODE_H / 2}
-                  dominantBaseline="central"
-                  textAnchor="middle"
-                  className={cn(
-                    "text-[11.5px]",
-                    isHere ? "fill-background font-medium" : "fill-foreground",
-                  )}
-                >
-                  {short(s.label)}
-                </text>
-              </g>
+              {/* The current station only gets a firmer outline: no inversion, no animation. */}
+              <rect
+                width={p.w}
+                height={NODE_H}
+                rx={8}
+                strokeWidth={isHere ? 1.5 : 1}
+                className={cn(
+                  seen ? "fill-accent" : "fill-popover",
+                  isHere || hover === i
+                    ? "stroke-foreground"
+                    : seen
+                      ? "stroke-muted-foreground/50"
+                      : "stroke-border",
+                )}
+              />
+              <text
+                x={p.w / 2}
+                y={NODE_H / 2}
+                dominantBaseline="central"
+                textAnchor="middle"
+                className={cn(
+                  "fill-foreground text-[11.5px]",
+                  isHere && "font-medium",
+                )}
+              >
+                {short(s.label)}
+              </text>
             </g>
           );
           // No hover card while dragging: it would trail behind the station.

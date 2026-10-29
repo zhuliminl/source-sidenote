@@ -1,5 +1,5 @@
 import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
-import { revealCentered, ripple } from "@/hooks/use-pulse";
+import { revealCentered, ripple } from "@/hooks/reveal";
 import { ChevronRight, Search } from "lucide-react";
 import type { FileEntry, FileStatus, TopicView } from "@shared/api";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -202,6 +202,12 @@ export function FileTree({
     });
   }, [topicStatus]);
 
+  // Each newly selected file also shows its hover card once, to help it stick.
+  const [flashKey, setFlashKey] = useState(0);
+  useEffect(() => {
+    if (selected) setFlashKey((k) => k + 1);
+  }, [selected]);
+
   // Point at the newly active file: scroll it to the middle if it is out of view, then pulse it.
   const rows = useRef<HTMLDivElement>(null);
   const lastPress = useRef<{
@@ -351,6 +357,7 @@ export function FileTree({
                 mark={mark(f)}
                 hint={hints.get(f.path)}
                 selected={selected === f.path}
+                flash={selected === f.path ? flashKey : 0}
                 onSelect={onSelect}
               />
             ))
@@ -366,6 +373,7 @@ export function FileTree({
               status={e.status}
               hint={hints.get(e.path)}
               selected={selected === e.path}
+              flash={selected === e.path ? flashKey : 0}
               onSelect={onSelect}
             />
           ))
@@ -375,6 +383,7 @@ export function FileTree({
             depth={0}
             expanded={expanded}
             selected={selected}
+            flashKey={flashKey}
             mark={mark}
             hints={hints}
             dimUnmarked={Boolean(topicStatus)}
@@ -409,6 +418,7 @@ function OrderItem({
   status,
   hint,
   selected,
+  flash,
   onSelect,
 }: {
   index: number;
@@ -416,11 +426,17 @@ function OrderItem({
   status: FileStatus;
   hint: Hint | undefined;
   selected: boolean;
+  flash: number;
   onSelect: (path: string) => void;
 }) {
   const { dir, name } = splitPath(path);
   return (
-    <FileHint hint={hint} path={path} status={fileStatusLabel[status]}>
+    <FileHint
+      hint={hint}
+      path={path}
+      status={fileStatusLabel[status]}
+      flash={flash}
+    >
       <button
         type="button"
         data-path={path}
@@ -462,6 +478,7 @@ function Nodes({
   depth: number;
   expanded: Set<string>;
   selected: string | null;
+  flashKey: number;
   mark: (f: FileEntry) => Mark;
   hints: Map<string, Hint>;
   dimUnmarked: boolean;
@@ -481,6 +498,7 @@ function Nodes({
               hint={hint}
               path={node.path}
               status={m.label}
+              flash={props.selected === node.path ? props.flashKey : 0}
             >
               <button
                 type="button"
@@ -546,17 +564,19 @@ function SearchResult({
   mark,
   hint,
   selected,
+  flash,
   onSelect,
 }: {
   file: FileEntry;
   mark: Mark;
   hint: Hint | undefined;
   selected: boolean;
+  flash: number;
   onSelect: (path: string) => void;
 }) {
   const { dir, name } = splitPath(file.path);
   return (
-    <FileHint hint={hint} path={file.path} status={mark.label}>
+    <FileHint hint={hint} path={file.path} status={mark.label} flash={flash}>
       <button
         type="button"
         data-path={file.path}

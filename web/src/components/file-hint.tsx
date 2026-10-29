@@ -1,4 +1,4 @@
-import type { ReactElement } from "react";
+import { useEffect, useState, type ReactElement } from "react";
 import {
   Tooltip,
   TooltipContent,
@@ -21,6 +21,7 @@ export function FileHint({
   side = "right",
   disabled = false,
   meta,
+  flash = 0,
 }: {
   hint: Hint | undefined;
   path: string;
@@ -31,10 +32,25 @@ export function FileHint({
   disabled?: boolean;
   /** Replaces the default "file name · status" footer. */
   meta?: string;
+  /** A new non-zero value shows the card on its own for a moment, e.g. when the row becomes active. */
+  flash?: number;
 }) {
+  const [open, setOpen] = useState(false);
+  useEffect(() => {
+    if (!flash) return;
+    // Wait for the row to scroll into place, then show the card briefly.
+    const show = setTimeout(() => setOpen(true), 350);
+    const hide = setTimeout(() => setOpen(false), 3000);
+    return () => {
+      clearTimeout(show);
+      clearTimeout(hide);
+      // Another row took over: put this card away instead of leaving it open.
+      setOpen(false);
+    };
+  }, [flash]);
   if (!hint || (!hint.brief && !hint.detail)) return children;
   return (
-    <Tooltip open={disabled ? false : undefined}>
+    <Tooltip open={disabled ? false : open} onOpenChange={setOpen}>
       <TooltipTrigger asChild>{children}</TooltipTrigger>
       <TooltipContent
         side={side}

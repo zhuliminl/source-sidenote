@@ -28,7 +28,7 @@ import { InlineMarkdown } from "@/components/inline-markdown";
 import { FileHint } from "@/components/file-hint";
 import { TopicGraph } from "./topic-graph";
 import { publishMapRect } from "./map-rect";
-import { revealCentered, usePulse } from "@/hooks/use-pulse";
+import { revealCentered } from "@/hooks/reveal";
 import { splitPath } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
@@ -653,7 +653,6 @@ function Station({
   onSelect: (path: string) => void;
 }) {
   const { name } = splitPath(station.path);
-  const pulse = usePulse(here, station.path);
   return (
     <li aria-current={here ? "step" : undefined}>
       <FileHint
@@ -668,7 +667,6 @@ function Station({
           className={cn(
             "group flex w-full items-stretch gap-2.5 rounded-lg px-1.5 text-left transition-colors hover:bg-accent/70",
             here && "bg-accent hover:bg-accent",
-            pulse && "pulse",
           )}
         >
           {/* The rail: a continuous line through every station's dot. */}

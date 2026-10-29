@@ -1,20 +1,3 @@
-import { useEffect, useState } from "react";
-
-/**
- * True for a moment after `active` turns on (or `key` changes while active), to play a
- * one-off "you are here" animation without replaying it on every render.
- */
-export function usePulse(active: boolean, key?: unknown) {
-  const [on, setOn] = useState(false);
-  useEffect(() => {
-    if (!active) return;
-    setOn(true);
-    const t = setTimeout(() => setOn(false), 800);
-    return () => clearTimeout(t);
-  }, [active, key]);
-  return on;
-}
-
 /** Scrolls an element to the middle of its scroll container, but only if it is not fully visible. */
 export function revealCentered(el: Element | null | undefined) {
   if (!el) return;

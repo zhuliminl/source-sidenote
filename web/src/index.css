@@ -184,16 +184,6 @@
     transform: scale(1);
   }
 }
-@keyframes sidenote-svg-ripple {
-  0% {
-    transform: scale(1);
-    opacity: 0.55;
-  }
-  100% {
-    transform: scale(1.35);
-    opacity: 0;
-  }
-}
 .pulse {
   animation: sidenote-pop 0.45s ease-out;
 }
@@ -218,20 +208,8 @@
   background: rgb(16 185 129 / 0.28);
   animation: sidenote-ink 0.65s cubic-bezier(0.2, 0, 0, 1) forwards;
 }
-.svg-pulse {
-  transform-box: fill-box;
-  transform-origin: center;
-  animation: sidenote-pop 0.45s ease-out;
-}
-.svg-ripple {
-  transform-box: fill-box;
-  transform-origin: center;
-  animation: sidenote-svg-ripple 0.8s ease-out forwards;
-}
 @media (prefers-reduced-motion: reduce) {
   .pulse,
-  .svg-pulse,
-  .svg-ripple,
   .ripple-ink {
     animation: none;
   }
