@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { NavLink, useParams } from "react-router";
 import {
+  Bot,
   Boxes,
   Gauge,
   Loader2,
@@ -14,6 +15,8 @@ import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/layout/page-header";
 import { Input } from "@/components/ui/input";
 import { ModelSettings } from "./model-settings";
+import { AgentSettings } from "./agent-settings";
+import { ClearAllTopics } from "./clear-all-topics";
 import { useTheme, type ThemePreference } from "@/hooks/use-theme";
 import { useConfig, useSaveConfig } from "@/lib/queries";
 import { cn } from "@/lib/utils";
@@ -22,6 +25,7 @@ const tabs = [
   { id: "general", label: "常规", icon: SlidersHorizontal },
   { id: "models", label: "模型", icon: Boxes },
   { id: "generation", label: "生成偏好", icon: Gauge },
+  { id: "agents", label: "接入 Agent", icon: Bot },
 ] as const;
 
 export type SettingsTab = (typeof tabs)[number]["id"];
@@ -62,6 +66,8 @@ export function SettingsPage() {
             </section>
           ) : tab === "models" ? (
             <ModelSettings />
+          ) : tab === "agents" ? (
+            <AgentSettings />
           ) : (
             <section className="max-w-2xl">
               <ConfigForm />
@@ -81,25 +87,29 @@ function GeneralSettings() {
     ["dark", "深色", Moon],
   ];
   return (
-    <Row label="外观">
-      <div className="flex rounded-full bg-muted p-0.5">
-        {options.map(([value, label, Icon]) => (
-          <button
-            key={value}
-            type="button"
-            onClick={() => setPreference(value)}
-            aria-pressed={preference === value}
-            className={cn(
-              "flex items-center gap-1.5 rounded-full px-3 py-1 text-sm text-muted-foreground transition-colors",
-              preference === value && "bg-background text-foreground shadow-sm",
-            )}
-          >
-            <Icon className="size-3.5" />
-            {label}
-          </button>
-        ))}
-      </div>
-    </Row>
+    <>
+      <Row label="外观">
+        <div className="flex rounded-full bg-muted p-0.5">
+          {options.map(([value, label, Icon]) => (
+            <button
+              key={value}
+              type="button"
+              onClick={() => setPreference(value)}
+              aria-pressed={preference === value}
+              className={cn(
+                "flex items-center gap-1.5 rounded-full px-3 py-1 text-sm text-muted-foreground transition-colors",
+                preference === value &&
+                  "bg-background text-foreground shadow-sm",
+              )}
+            >
+              <Icon className="size-3.5" />
+              {label}
+            </button>
+          ))}
+        </div>
+      </Row>
+      <ClearAllTopics />
+    </>
   );
 }
 

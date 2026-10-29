@@ -1,9 +1,14 @@
+import { realpathSync } from "node:fs";
+import { homedir } from "node:os";
+import { join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import type { FastifyInstance } from "fastify";
 import type { ServerResponse } from "node:http";
 import { z } from "zod";
 import type {
   AddProjectResult,
   ConfigView,
+  AgentSetup,
   LocateResult,
   ModelDiscovery,
   ModelTest,
@@ -86,6 +91,25 @@ const fileRun = z.object({
   kind: z.enum(["generate", "review"]),
 });
 
+/**
+ * Homebrew runs node from a versioned Cellar path that disappears on upgrade; prefer the stable
+ * opt/ link (the major-pinned one first) when it points at the same binary.
+ */
+function stableNodePath() {
+  const exec = process.execPath;
+  const m = exec.match(/^(.*)\/Cellar\/([^/]+)\/[^/]+\/bin\/node$/);
+  if (!m) return exec;
+  const major = process.versions.node.split(".")[0];
+  for (const candidate of [
+    `${m[1]}/opt/node@${major}/bin/node`,
+    `${m[1]}/opt/${m[2]}/bin/node`,
+  ])
+    try {
+      if (realpathSync(candidate) === realpathSync(exec)) return candidate;
+    } catch {}
+  return exec;
+}
+
 export function registerRoutes(
   app: FastifyInstance,
   c: Container,
@@ -164,6 +188,25 @@ export function registerRoutes(
   );
   // For coding agents through `sidenote mcp`: the writing guide and validated writes.
   app.get("/api/agent/guide", async () => agent.guide());
+  // The exact command that starts the MCP server on this machine (Node 26 + this install).
+  app.get("/api/agent/setup", async (): Promise<AgentSetup> => {
+    const defaultHome = join(homedir(), ".local", "share", "source-sidenote");
+    return {
+      command: stableNodePath(),
+      args: [
+        fileURLToPath(new URL("../../cli/main.js", import.meta.url)),
+        "mcp",
+      ],
+      env:
+        resolve(c.home) === resolve(defaultHome)
+          ? {}
+          : { SIDENOTE_HOME: c.home },
+    };
+  });
+  app.post("/api/topics/:id/clear", async (req) =>
+    topics.clear(idParams.parse(req.params).id),
+  );
+  app.post("/api/topics/clear-all", async () => topics.removeAll());
   app.post("/api/agent/projects/:id/topics", (req): Promise<TopicView> =>
     agent.createTopic(
       idParams.parse(req.params).id,

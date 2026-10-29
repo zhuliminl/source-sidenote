@@ -167,7 +167,7 @@ command = "node"
 args = ["/path/to/source-sidenote/dist/cli/main.js", "mcp"]
 ```
 
-服务需要先启动（`sidenote start`）。提供的工具：`get_guide`（所有 Agent 都要遵守的写作指南）、`list_projects`、`list_topics`、`get_topic`、`locate_file`、`create_topic`（由 Agent 挑选文件）、`get_explanation`、`submit_explanation`、`submit_overview`、`submit_story`。Agent 被要求只读代码、不修改文件；它写的说明只在代码变化时过期，不会因为你换了模型而过期。
+网页阅读器的**设置 → 接入 Agent** 里有这些命令（已填好你本机的路径，可直接复制），以及 Agent 收到的完整写作指南。服务需要先启动（`sidenote start`）。提供的工具：`get_guide`（所有 Agent 都要遵守的写作指南）、`list_projects`、`list_topics`、`get_topic`、`locate_file`、`create_topic`（由 Agent 挑选文件）、`get_explanation`、`submit_explanation`、`submit_overview`、`submit_story`。Agent 被要求只读代码、不修改文件；它写的说明只在代码变化时过期，不会因为你换了模型而过期。
 
 ## 隐私与费用
 

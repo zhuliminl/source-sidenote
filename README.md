@@ -167,7 +167,7 @@ command = "node"
 args = ["/path/to/source-sidenote/dist/cli/main.js", "mcp"]
 ```
 
-The service must be running (`sidenote start`). Tools: `get_guide` (the writing guide every agent should follow), `list_projects`, `list_topics`, `get_topic`, `locate_file`, `create_topic` (the agent picks the files), `get_explanation`, `submit_explanation`, `submit_overview`, `submit_story`. Agents are told to read only and never modify files; explanations they write go stale when the code changes, not when you switch models.
+**Settings → 接入 Agent** in the web reader shows these commands with your machine's paths filled in, ready to copy, plus the full writing guide agents receive. The service must be running (`sidenote start`). Tools: `get_guide` (the writing guide every agent should follow), `list_projects`, `list_topics`, `get_topic`, `locate_file`, `create_topic` (the agent picks the files), `get_explanation`, `submit_explanation`, `submit_overview`, `submit_story`. Agents are told to read only and never modify files; explanations they write go stale when the code changes, not when you switch models.
 
 ## Privacy and cost
 

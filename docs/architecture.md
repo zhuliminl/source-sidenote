@@ -72,6 +72,9 @@ stories 表按主题保存故事：问题、标题、状态（generating / ready
 | GET/POST /api/projects             | 列表（含覆盖率、主题数）/注册并扫描                            |
 | POST /api/projects/:id/refresh     | 重新扫描                                                       |
 | GET /api/projects/:id/files        | 文件清单与覆盖每个文件的主题                                   |
+| GET /api/agent/setup               | 本机启动 `sidenote mcp` 的命令（设置页的接入指南用）           |
+| POST /api/topics/:id/clear         | 清空主题的说明、导读和故事，保留文件清单                       |
+| POST /api/topics/clear-all         | 删除所有项目的全部主题（项目保留）                             |
 | GET /api/agent/guide               | 给编码 Agent 的写作指南（与模型提示词同源）                    |
 | POST /api/agent/...                | Agent 建主题、提交说明/导读/故事（校验后署名保存）             |
 | GET /api/locate?path=              | 编辑器用：绝对路径所属项目、是否在扫描范围、覆盖它的主题       |

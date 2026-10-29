@@ -167,6 +167,22 @@ export class TopicService {
     this.changed();
   }
 
+  /** Empties a topic so it can be written again (by the model or an agent); files stay. */
+  clear(id: string) {
+    this.deps.topics.get(id);
+    const cleared = this.deps.topics.clearContent(id);
+    this.changed();
+    return cleared;
+  }
+
+  /** Deletes every topic of every project, with what they generated. Projects stay. */
+  removeAll() {
+    const ids = this.deps.topics.ids();
+    for (const id of ids) this.deps.topics.remove(id);
+    this.changed();
+    return { topics: ids.length };
+  }
+
   async document(id: string, path: string): Promise<DocumentView> {
     const t = this.deps.topics.get(id);
     const d = this.deps.docs.get(id, path);

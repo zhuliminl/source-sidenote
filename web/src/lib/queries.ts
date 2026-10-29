@@ -206,6 +206,33 @@ export function useRemoveStory() {
   return useMutation({ mutationFn: api.removeStory, onSuccess: invalidate });
 }
 
+export function useClearTopic() {
+  const invalidate = useInvalidateTopics();
+  return useMutation({
+    mutationFn: api.clearTopic,
+    onSuccess: (r) => {
+      toast(`已清空 ${r.docs} 份说明、${r.stories} 条故事和导读`);
+      invalidate();
+    },
+  });
+}
+
+export function useClearAllTopics() {
+  const invalidate = useInvalidateTopics();
+  return useMutation({
+    mutationFn: api.clearAllTopics,
+    onSuccess: (r) => {
+      toast(`已删除 ${r.topics} 个主题`);
+      invalidate();
+    },
+  });
+}
+
+export const useAgentSetup = () =>
+  useQuery({ queryKey: ["agent", "setup"], queryFn: api.agentSetup });
+export const useAgentGuide = () =>
+  useQuery({ queryKey: ["agent", "guide"], queryFn: api.agentGuide });
+
 export function useRemoveTopic() {
   const invalidate = useInvalidateTopics();
   return useMutation({ mutationFn: api.removeTopic, onSuccess: invalidate });

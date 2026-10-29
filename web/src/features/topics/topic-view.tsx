@@ -8,6 +8,7 @@ import {
   RefreshCw,
   Search,
   Sparkles,
+  Eraser,
   Trash2,
   X,
 } from "lucide-react";
@@ -37,6 +38,7 @@ import {
   useJobs,
   usePrompts,
   useRefreshTopic,
+  useClearTopic,
   useRemoveTopic,
   useReplan,
 } from "@/lib/queries";
@@ -557,6 +559,7 @@ function FileRow({
   );
 }
 
+/** The end of a topic page: empty it (keep the files) or delete it outright. */
 function DeleteTopic({
   topic,
   onDeleted,
@@ -564,35 +567,61 @@ function DeleteTopic({
   topic: Topic;
   onDeleted: () => void;
 }) {
-  const [open, setOpen] = useState(false);
+  const [confirm, setConfirm] = useState<"clear" | "delete" | null>(null);
   const remove = useRemoveTopic();
+  const clear = useClearTopic();
+  const action =
+    "rounded-full bg-destructive text-white hover:bg-destructive/90";
   return (
-    <div className="mt-12 border-t pt-6">
+    <div className="mt-12 flex flex-wrap gap-2 border-t pt-6">
+      {topic.state === "confirmed" && (
+        <Button
+          variant="ghost"
+          size="sm"
+          className="text-muted-foreground hover:text-destructive"
+          onClick={() => setConfirm("clear")}
+        >
+          <Eraser />
+          清空内容
+        </Button>
+      )}
       <Button
         variant="ghost"
         size="sm"
         className="text-muted-foreground hover:text-destructive"
-        onClick={() => setOpen(true)}
+        onClick={() => setConfirm("delete")}
       >
         <Trash2 />
         删除主题
       </Button>
-      <AlertDialog open={open} onOpenChange={setOpen}>
+      <AlertDialog
+        open={confirm !== null}
+        onOpenChange={(o) => !o && setConfirm(null)}
+      >
         <AlertDialogContent className="sm:max-w-md">
           <AlertDialogHeader>
-            <AlertDialogTitle>删除“{topic.title}”？</AlertDialogTitle>
+            <AlertDialogTitle>
+              {confirm === "clear"
+                ? `清空“${topic.title}”的内容？`
+                : `删除“${topic.title}”？`}
+            </AlertDialogTitle>
             <AlertDialogDescription>
-              这个主题生成的 {topic.files}{" "}
-              份说明和导读会一起删除，进行中的任务会被取消。源码不受影响，你可以随时重新创建。
+              {confirm === "clear"
+                ? "这个主题的全部说明、链路导读和故事都会删除，进行中的任务会被取消；主题和文件清单保留。之后可以点“更新”重新生成，或交给编码 Agent 重写。"
+                : `这个主题、它的 ${topic.files} 份说明、导读和故事会一起删除，进行中的任务会被取消。源码不受影响，你可以随时重新创建。`}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel className="rounded-full">取消</AlertDialogCancel>
             <AlertDialogAction
-              className="rounded-full bg-destructive text-white hover:bg-destructive/90"
-              onClick={() => remove.mutate(topic.id, { onSuccess: onDeleted })}
+              className={action}
+              onClick={() =>
+                confirm === "clear"
+                  ? clear.mutate(topic.id)
+                  : remove.mutate(topic.id, { onSuccess: onDeleted })
+              }
             >
-              删除
+              {confirm === "clear" ? "清空" : "删除"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

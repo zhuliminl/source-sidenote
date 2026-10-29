@@ -35,6 +35,7 @@ export function createContainer(home: string) {
   const topicService = new TopicService(deps, projectService);
   const storyService = new StoryService(deps);
   return {
+    home,
     db,
     ...deps,
     projectService,

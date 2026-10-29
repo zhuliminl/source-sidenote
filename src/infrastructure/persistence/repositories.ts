@@ -166,6 +166,30 @@ export class TopicRepository {
     });
   }
   /** Removes the topic with everything generated for it and cancels its pending work. */
+  /** Drops what was generated for a topic (explanations, walkthrough, stories) but keeps its files. */
+  clearContent(id: string) {
+    return transaction(this.db, () => {
+      const docs = Number(
+        this.db.prepare("DELETE FROM docs WHERE topic=?").run(id).changes,
+      );
+      const stories = Number(
+        this.db.prepare("DELETE FROM stories WHERE topic=?").run(id).changes,
+      );
+      this.db
+        .prepare(
+          "UPDATE jobs SET state='cancelled',updated=? WHERE topic=? AND state IN ('queued','running')",
+        )
+        .run(now(), id);
+      this.db.prepare("UPDATE topics SET overview=NULL WHERE id=?").run(id);
+      return { docs, stories };
+    });
+  }
+  /** Every topic id, across all projects. */
+  ids(): string[] {
+    return (
+      this.db.prepare("SELECT id FROM topics").all() as { id: string }[]
+    ).map((r) => r.id);
+  }
   remove(id: string) {
     transaction(this.db, () => {
       for (const table of ["topic_files", "docs", "stories"])

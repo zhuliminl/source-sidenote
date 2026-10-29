@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import { realpathSync } from "node:fs";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { mkdtemp, mkdir, writeFile, rm, symlink } from "node:fs/promises";
@@ -567,6 +568,19 @@ test("topics: plan, confirm, explain, overview, review, staleness, cancellation,
       agent.kill();
     }
 
+    // The settings page shows how to start the MCP server on this machine.
+    const setup = await api("agent/setup");
+    assert.equal(realpathSync(setup.command), realpathSync(process.execPath));
+    assert.deepEqual(setup.args.slice(-1), ["mcp"]);
+    // Clearing a topic drops what was written for it but keeps its files.
+    assert.deepEqual(await api(`topics/${topic.id}/clear`, {}), {
+      docs: 1,
+      stories: 1,
+    });
+    assert.equal((await api(doc)).status, "missing");
+    assert.equal((await api(`topics/${topic.id}`)).entries.length, 1);
+    assert.equal((await api(`topics/${topic.id}`)).overview, null);
+
     // A failed plan can be retried; deleting a topic removes what it generated.
     planned = [{ path: "missing.ts", reason: "" }];
     const second = await api(`projects/${id}/topics`, {
@@ -585,6 +599,9 @@ test("topics: plan, confirm, explain, overview, review, staleness, cancellation,
       [second.id],
     );
 
+    // Clearing every topic leaves the projects in place.
+    assert.ok((await api("topics/clear-all", {})).topics >= 1);
+    assert.deepEqual(await api(`projects/${id}/topics`), []);
     await api(`projects/${id}`, undefined, "DELETE");
     assert.deepEqual(await api("projects"), []);
   } finally {

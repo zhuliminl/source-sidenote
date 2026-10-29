@@ -1,5 +1,6 @@
 import type {
   AddProjectResult,
+  AgentSetup,
   ConfigUpdate,
   ConfigView,
   ModelDiscovery,
@@ -96,6 +97,16 @@ export const api = {
     request<StoryView>("POST", `stories/${id(story)}/retry`, {}),
   removeStory: (story: string) =>
     request<{ ok: true }>("DELETE", `stories/${id(story)}`),
+  clearTopic: (topic: string) =>
+    request<{ docs: number; stories: number }>(
+      "POST",
+      `topics/${id(topic)}/clear`,
+      {},
+    ),
+  clearAllTopics: () =>
+    request<{ topics: number }>("POST", "topics/clear-all", {}),
+  agentSetup: () => request<AgentSetup>("GET", "agent/setup"),
+  agentGuide: () => request<{ guide: string }>("GET", "agent/guide"),
   removeTopic: (topic: string) =>
     request<{ ok: true }>("DELETE", `topics/${id(topic)}`),
   replan: (topic: string, body: TopicReplan) =>

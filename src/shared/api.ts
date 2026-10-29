@@ -114,6 +114,14 @@ export interface AgentStorySubmit {
   author?: string;
 }
 
+/** How to start `sidenote mcp` on this machine, for the settings page's agent guide. */
+export interface AgentSetup {
+  command: string;
+  args: string[];
+  /** Set when the data directory is not the default, so the MCP server finds this service. */
+  env: Record<string, string>;
+}
+
 export type StoryState = "generating" | "ready" | "failed";
 
 /** One frame of a story: open this file, look at these lines, read this. */
