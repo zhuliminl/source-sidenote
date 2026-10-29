@@ -14,4 +14,5 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm test
+      - run: npm run check -w editors/vscode && npm run build -w editors/vscode
       - run: npm pack --dry-run

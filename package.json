@@ -12,7 +12,7 @@
   },
   "files": [
     "dist",
-    "editors",
+    "editors/neovim",
     "README.md",
     "LICENSE",
     "docs"
@@ -23,10 +23,10 @@
     "dev": "npm run dev -w web",
     "start": "node dist/cli/main.js start",
     "test": "npm run build && node --test tests/*.test.mjs",
-    "check": "tsc --noEmit && npm run check -w web",
+    "check": "tsc --noEmit && npm run check -w web && npm run check -w editors/vscode",
     "prepack": "npm run build",
-    "format": "prettier --write src web/src tests docs *.md *.json .github/workflows/*.yml",
-    "format:check": "prettier --check src web/src tests docs *.md *.json .github/workflows/*.yml"
+    "format": "prettier --write src web/src editors/vscode/src editors/vscode/media tests docs *.md *.json .github/workflows/*.yml",
+    "format:check": "prettier --check src web/src editors/vscode/src editors/vscode/media tests docs *.md *.json .github/workflows/*.yml"
   },
   "dependencies": {
     "@fastify/static": "^10.1.8",
@@ -40,6 +40,7 @@
     "typescript": "^5.9.3"
   },
   "workspaces": [
-    "web"
+    "web",
+    "editors/vscode"
   ]
 }

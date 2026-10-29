@@ -1,0 +1,247 @@
+/* Themed entirely with VS Code's CSS variables so it follows any color theme. */
+body {
+  overflow-x: hidden;
+  margin: 0;
+  padding: 0 16px 48px;
+  color: var(--vscode-foreground);
+  background: var(--vscode-editor-background);
+  font-family: var(--vscode-font-family);
+  font-size: var(--vscode-font-size);
+  line-height: 1.65;
+}
+header {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+  margin: 0 -16px 12px;
+  padding: 8px 16px;
+  background: var(--vscode-editor-background);
+  border-bottom: 1px solid var(--vscode-panel-border, transparent);
+}
+.file {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--vscode-editor-font-family);
+  font-size: 0.92em;
+}
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-left: auto;
+}
+button {
+  padding: 2px 10px;
+  border: 1px solid var(--vscode-button-border, transparent);
+  border-radius: 2px;
+  color: var(--vscode-button-foreground);
+  background: var(--vscode-button-background);
+  font: inherit;
+  cursor: pointer;
+}
+button:hover {
+  background: var(--vscode-button-hoverBackground);
+}
+button.secondary {
+  color: var(--vscode-button-secondaryForeground);
+  background: var(--vscode-button-secondaryBackground);
+}
+button.secondary:hover {
+  background: var(--vscode-button-secondaryHoverBackground);
+}
+button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+button:focus-visible {
+  outline: 1px solid var(--vscode-focusBorder);
+  outline-offset: 1px;
+}
+.badge {
+  padding: 0 6px;
+  border-radius: 8px;
+  font-size: 0.85em;
+}
+.badge.fresh {
+  color: var(--vscode-testing-iconPassed, var(--vscode-foreground));
+}
+.badge.stale {
+  color: var(--vscode-editorWarning-foreground);
+}
+.summary {
+  margin: 4px 0 0;
+  font-size: 1.08em;
+}
+.meta,
+.muted,
+.hint {
+  color: var(--vscode-descriptionForeground);
+}
+.meta {
+  margin: 4px 0 0;
+  font-size: 0.88em;
+}
+.hint {
+  margin-left: 8px;
+  font-size: 0.85em;
+  font-weight: normal;
+}
+h2 {
+  margin: 20px 0 6px;
+  font-size: 0.85em;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--vscode-descriptionForeground);
+}
+ul,
+ol {
+  margin: 0;
+  padding-left: 20px;
+}
+li + li {
+  margin-top: 2px;
+}
+ul.items {
+  padding: 0;
+  margin: 0 -6px;
+  list-style: none;
+}
+.item {
+  display: flex;
+  gap: 8px;
+  width: 100%;
+  padding: 4px 6px;
+  border: none;
+  border-radius: 3px;
+  color: inherit;
+  background: transparent;
+  text-align: left;
+}
+.item:hover {
+  background: var(--vscode-list-hoverBackground);
+}
+.item.column {
+  flex-direction: column;
+  gap: 0;
+}
+.range,
+.path,
+code,
+pre {
+  font-family: var(--vscode-editor-font-family);
+  font-size: 0.9em;
+}
+.range {
+  flex-shrink: 0;
+  height: fit-content;
+  padding: 0 5px;
+  border-radius: 3px;
+  color: var(--vscode-textLink-foreground);
+  background: var(--vscode-textCodeBlock-background);
+}
+.path {
+  color: var(--vscode-textLink-foreground);
+}
+code {
+  padding: 1px 4px;
+  border-radius: 3px;
+  background: var(--vscode-textCodeBlock-background);
+}
+pre {
+  padding: 8px 10px;
+  border-radius: 3px;
+  background: var(--vscode-textCodeBlock-background);
+}
+.notice {
+  margin: 0 0 12px;
+  padding: 8px 12px;
+  border-left: 3px solid var(--vscode-textLink-foreground);
+  background: var(--vscode-textBlockQuote-background);
+}
+.notice.warn {
+  border-color: var(--vscode-editorWarning-foreground);
+}
+.notice.error {
+  border-color: var(--vscode-errorForeground);
+}
+.notice p {
+  margin: 0;
+}
+.notice button {
+  margin-top: 8px;
+}
+.empty {
+  padding: 24px 0;
+  text-align: center;
+}
+.empty p {
+  margin: 0 0 6px;
+}
+.empty button {
+  margin-top: 10px;
+}
+.review.fail p:first-child {
+  color: var(--vscode-editorWarning-foreground);
+}
+.review p {
+  margin: 0;
+}
+.topic {
+  margin: -4px 0 12px;
+}
+.topic p {
+  margin: 2px 0 0;
+  font-size: 0.88em;
+}
+button.link {
+  padding: 0;
+  border: none;
+  color: var(--vscode-textLink-foreground);
+  background: transparent;
+}
+button.link:hover {
+  background: transparent;
+  text-decoration: underline;
+}
+/* The evidence block under the editor cursor: same warm tone as the editor highlight. */
+.evidence li.active .item {
+  background: rgba(250, 204, 21, 0.14);
+  box-shadow: inset 2px 0 0 rgba(202, 138, 4, 0.8);
+}
+.evidence li.active .range {
+  color: var(--vscode-editor-background);
+  background: rgba(202, 138, 4, 0.9);
+}
+.diagram {
+  margin: 14px 0 4px;
+  padding: 10px;
+  overflow-x: auto;
+  border: 1px solid var(--vscode-panel-border, transparent);
+  border-radius: 4px;
+}
+/* Mermaid sets an inline max-width at its laid-out size; fit the panel instead. */
+.diagram svg {
+  display: block;
+  width: 100%;
+  max-width: 100% !important;
+  height: auto;
+  margin: 0 auto;
+}
+.diagram .linked {
+  cursor: pointer;
+}
+.diagram .linked:hover :is(rect, polygon, circle, path.basic),
+.diagram .active :is(rect, polygon, circle, path.basic) {
+  stroke: rgba(202, 138, 4, 0.95) !important;
+  stroke-width: 2px !important;
+}
+.diagram .active :is(rect, polygon, circle, path.basic) {
+  fill: rgba(250, 204, 21, 0.18) !important;
+}

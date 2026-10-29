@@ -1,0 +1,109 @@
+{
+  "name": "source-sidenote-vscode",
+  "displayName": "Source Sidenote",
+  "description": "Review Source Sidenote topic explanations beside the code: evidence blocks in the gutter, the block under the cursor explained",
+  "version": "0.1.0",
+  "publisher": "source-sidenote",
+  "private": true,
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.90.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "main": "./dist/extension.js",
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "contributes": {
+    "commands": [
+      {
+        "command": "sidenote.explain",
+        "title": "Show Explanation",
+        "category": "Sidenote",
+        "icon": "$(book)"
+      },
+      {
+        "command": "sidenote.chooseTopic",
+        "title": "Choose Topic",
+        "category": "Sidenote",
+        "icon": "$(layers)"
+      },
+      {
+        "command": "sidenote.review",
+        "title": "AI Review This Explanation",
+        "category": "Sidenote"
+      },
+      {
+        "command": "sidenote.regenerate",
+        "title": "Regenerate Explanation",
+        "category": "Sidenote"
+      },
+      {
+        "command": "sidenote.openWeb",
+        "title": "Open in Web Reader",
+        "category": "Sidenote",
+        "icon": "$(link-external)"
+      },
+      {
+        "command": "sidenote.newTopic",
+        "title": "New Topic in Web Reader",
+        "category": "Sidenote"
+      }
+    ],
+    "views": {
+      "explorer": [
+        {
+          "id": "sidenote.topic",
+          "name": "Sidenote 主题"
+        }
+      ]
+    },
+    "menus": {
+      "view/title": [
+        {
+          "command": "sidenote.chooseTopic",
+          "when": "view == sidenote.topic",
+          "group": "navigation"
+        },
+        {
+          "command": "sidenote.explain",
+          "when": "view == sidenote.topic",
+          "group": "navigation"
+        },
+        {
+          "command": "sidenote.openWeb",
+          "when": "view == sidenote.topic",
+          "group": "navigation"
+        }
+      ],
+      "editor/title": [
+        {
+          "command": "sidenote.explain",
+          "when": "resourceScheme == file",
+          "group": "navigation"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "Source Sidenote",
+      "properties": {
+        "sidenote.home": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "Source Sidenote data directory containing `connection.json`. Empty uses `SIDENOTE_HOME` or `~/.local/share/source-sidenote`."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "build": "esbuild src/extension.ts --bundle --platform=node --format=cjs --target=node20 --external:vscode --outfile=dist/extension.js && esbuild src/webview/panel.ts --bundle --minify --format=iife --target=es2022 --outfile=dist/panel.js",
+    "check": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/vscode": "~1.90.0",
+    "esbuild": "^0.28.2",
+    "mermaid": "^11.17.2"
+  }
+}

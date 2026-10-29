@@ -310,6 +310,25 @@ test("topics: plan, confirm, explain, overview, review, staleness, cancellation,
     assert.equal((await api(`topics/${topic.id}/refresh`, {})).queued, 0);
     assert.equal(calls.explain, 1);
 
+    // Editors find a file's project, scope and covering topics from its absolute path.
+    const located = await api(
+      `locate?path=${encodeURIComponent(join(root, "hello.ts"))}`,
+    );
+    assert.equal(located.project.id, id);
+    assert.equal(located.path, "hello.ts");
+    assert.equal(located.inScope, true);
+    assert.deepEqual(located.topics, [
+      { id: topic.id, title: topic.title, reason: "入口" },
+    ]);
+    assert.equal(
+      (
+        await api(
+          `locate?path=${encodeURIComponent(join(tmpdir(), "elsewhere.ts"))}`,
+        )
+      ).project,
+      null,
+    );
+
     // The walkthrough suggests questions; a story records a replayable walk for one of them.
     assert.deepEqual(topic.overview.questions, ["hello 返回什么"]);
     const story = await api(`topics/${topic.id}/stories`, {

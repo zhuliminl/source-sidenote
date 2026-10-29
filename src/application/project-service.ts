@@ -1,8 +1,9 @@
-import { basename } from "node:path";
+import { basename, relative, resolve, sep } from "node:path";
 import { realpath } from "node:fs/promises";
 import type {
   AddProjectResult,
   FileEntry,
+  LocateResult,
   ProjectSummary,
   SourceView,
 } from "../shared/api.js";
@@ -86,6 +87,42 @@ export class ProjectService {
   }
 
   /** Source text for the reader; only files inside the scanned scope are served. */
+  /** Maps an absolute path (as an editor sees it) to its project, scope and covering topics. */
+  async locate(file: string): Promise<LocateResult> {
+    // Project roots are stored as realpaths (e.g. /private/tmp on macOS).
+    const full = await realpath(resolve(file)).catch(() => resolve(file));
+    const fold = (s: string) =>
+      process.platform === "win32" ? s.toLowerCase() : s;
+    const project = this.deps.projects
+      .list()
+      .filter((p) => fold(full).startsWith(fold(p.root + sep)))
+      .sort((a, b) => b.root.length - a.root.length)[0];
+    if (!project)
+      return { project: null, path: null, inScope: false, topics: [] };
+    const path = relative(project.root, full).split(sep).join("/");
+    const inScope = this.deps.files
+      .list(project.id)
+      .some((f) => f.path === path);
+    const covering = new Set(this.deps.topics.coverage(project.id).get(path));
+    const topics = this.deps.topics
+      .list(project.id)
+      .filter((t) => covering.has(t.id))
+      .reverse()
+      .map((t) => ({
+        id: t.id,
+        title: t.title,
+        reason:
+          this.deps.topics.files(t.id).find((f) => f.path === path)?.reason ??
+          "",
+      }));
+    return {
+      project: { id: project.id, name: project.name, root: project.root },
+      path,
+      inScope,
+      topics,
+    };
+  }
+
   async source(id: string, path: string): Promise<SourceView> {
     const p = this.deps.projects.get(id);
     const file = this.deps.files.list(id).find((f) => f.path === path);

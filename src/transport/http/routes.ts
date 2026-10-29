@@ -4,6 +4,7 @@ import { z } from "zod";
 import type {
   AddProjectResult,
   ConfigView,
+  LocateResult,
   ModelDiscovery,
   ModelTest,
   ProviderCreated,
@@ -132,6 +133,10 @@ export function registerRoutes(
   });
   app.get("/api/projects/:id/files", async (req): Promise<FileEntry[]> =>
     projects.files(idParams.parse(req.params).id),
+  );
+  // For editors: where an absolute path sits (project, scope, topics covering it).
+  app.get("/api/locate", (req): Promise<LocateResult> =>
+    projects.locate(pathQuery.parse(req.query).path),
   );
   app.get("/api/projects/:id/source", (req): Promise<SourceView> =>
     projects.source(

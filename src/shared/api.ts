@@ -68,6 +68,18 @@ export interface TopicOverview {
   questions: string[];
 }
 
+/** Where an absolute file path sits in Source Sidenote, for editor integrations. */
+export interface LocateResult {
+  /** The registered project whose root contains the file (deepest root wins), if any. */
+  project: { id: string; name: string; root: string } | null;
+  /** Project-relative path with "/" separators. */
+  path: string | null;
+  /** Whether the file is part of the project's scanned scope. */
+  inScope: boolean;
+  /** Confirmed topics that include this file, oldest first. */
+  topics: { id: string; title: string; reason: string }[];
+}
+
 export type StoryState = "generating" | "ready" | "failed";
 
 /** One frame of a story: open this file, look at these lines, read this. */

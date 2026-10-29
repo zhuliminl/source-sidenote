@@ -2,7 +2,7 @@
 
 **代码旁边，多一份理解。** A local-first AI code reading service with shared, persistent explanations.
 
-Source Sidenote 按**主题**帮你读懂本地项目：描述你想弄懂的功能或链路，AI 先挑出相关文件，你确认后才逐个生成有代码依据的说明，最后写一份把这些文件串起来的链路导读。不必为了读懂一条链路而解释整个仓库。独立 Node 服务管理模型、项目和生成任务；Neovim 通过轻量适配器在当前代码窗口右侧显示 Markdown。
+Source Sidenote 按**主题**帮你读懂本地项目：描述你想弄懂的功能或链路，AI 先挑出相关文件，你确认后才逐个生成有代码依据的说明，最后写一份把这些文件串起来的链路导读。不必为了读懂一条链路而解释整个仓库。独立 Node 服务管理模型、项目和生成任务；编辑器里负责 review：VS Code 扩展把代码依据标在代码上、按光标对应说明，Neovim 通过轻量适配器在当前代码窗口右侧显示 Markdown。
 
 > **0.1.0 开发预览**：尚未发布到 npm/GitHub。当前验证使用模拟模型，真实模型质量、费用和不同提供商兼容性需要实际验收。不要将 AI 复查通过当成正确性证明。
 
@@ -59,6 +59,10 @@ sidenote add [directory]
 sidenote explain /absolute/file [--topic id]
 sidenote stop
 ```
+
+## VS Code
+
+`editors/vscode` 是按主题 review 代码的扩展：代码依据标在行号旁，光标所在段落高亮并在说明面板里对应，悬停显示依据，资源管理器里有按阅读顺序排列的主题视图，可发起 AI 复查和重新生成，并能跳到网页阅读器的同一位置。安装与开发见 [editors/vscode/README.md](editors/vscode/README.md)。
 
 ## Neovim
 

@@ -14,9 +14,10 @@ src/transport/http  服务生命周期、安全钩子（Host/Origin/CSP）、错
 src/cli             parseArgs 解析 + 命令表，通过 HTTP 使用服务
 web                 管理页：Vite + React 19 + TanStack Query + Tailwind v4 + shadcn/ui，构建到 dist/web
 editors/neovim      仅负责编辑器显示与 CLI 调用
+editors/vscode      VS Code 扩展：按主题 review 当前文件（依据标记、光标对应、说明面板、阅读顺序视图）
 ```
 
-仓储按表拆分并返回类型化记录，SQL 只出现在 infrastructure/persistence。application 直接依赖这些具体实现，组装集中在 container.ts；尚未为只有一个实现的组件抽象接口。任务执行由事件驱动（入队、配置变更、任务结束时唤醒），不再轮询。第二种模型协议或存储出现时再提取窄接口。未来 VS Code 使用相同 HTTP 协议。
+仓储按表拆分并返回类型化记录，SQL 只出现在 infrastructure/persistence。application 直接依赖这些具体实现，组装集中在 container.ts；尚未为只有一个实现的组件抽象接口。任务执行由事件驱动（入队、配置变更、任务结束时唤醒），不再轮询。第二种模型协议或存储出现时再提取窄接口。VS Code 扩展使用相同 HTTP 协议。
 
 ## 身份与缓存
 
@@ -67,6 +68,7 @@ stories 表按主题保存故事：问题、标题、状态（generating / ready
 | GET/POST /api/projects             | 列表（含覆盖率、主题数）/注册并扫描                            |
 | POST /api/projects/:id/refresh     | 重新扫描                                                       |
 | GET /api/projects/:id/files        | 文件清单与覆盖每个文件的主题                                   |
+| GET /api/locate?path=              | 编辑器用：绝对路径所属项目、是否在扫描范围、覆盖它的主题       |
 | GET /api/projects/:id/source?path= | 扫描范围内文件的当前源码（阅读器用）                           |
 | DELETE /api/projects/:id           | 移除项目及其主题/说明/任务（不触碰源码）                       |
 | GET/POST /api/projects/:id/topics  | 主题列表/新建主题并开始规划 `{request, instructions?, model?}` |
@@ -92,4 +94,4 @@ stories 表按主题保存故事：问题、标题、状态（generating / ready
 1. 真实模型与真实项目小样本验收；质量和费用记录。
 2. 增量索引、明确的预算、模型适配与测试连接。
 3. 规划阶段使用更丰富的结构信号（导入图、符号索引），提高大仓库的选文件质量。
-4. VS Code 扩展适配主题（目前在独立分支，基于旧的逐文件接口）。
+4. Neovim 适配器按 VS Code 的 review 范围补齐（代码依据标记、光标对应、复查）。
