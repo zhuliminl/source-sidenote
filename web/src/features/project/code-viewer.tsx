@@ -4,27 +4,36 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { tokenize, type ThemedToken } from "@/lib/highlight";
-import { useSource } from "@/lib/queries";
+import { useDocument, useSource } from "@/lib/queries";
 import { formatBytes, splitPath } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { useLinkSetters, usePeek, type LineRange } from "./reader-link";
 
-export interface LineRange {
-  start: number;
-  end: number;
-}
+export type { LineRange };
 
 export function CodeViewer({
   projectId,
+  topicId,
   path,
   focus,
   onFocus,
 }: {
   projectId: string;
+  topicId: string | null;
   path: string;
   focus: LineRange | null;
   onFocus: (range: LineRange | null) => void;
 }) {
   const source = useSource(projectId, path);
+  // Lines the explanation covers get a gutter mark, so readers know hovering them leads somewhere.
+  const doc = useDocument(topicId, path);
+  const explained = useMemo(
+    () =>
+      doc.data && doc.data.status !== "missing"
+        ? doc.data.explanation.evidence
+        : [],
+    [doc.data],
+  );
   const content = source.data?.content;
   const lines = useMemo(() => content?.split("\n") ?? [], [content]);
   const tokens = useTokens(content, path);
@@ -76,6 +85,7 @@ export function CodeViewer({
           tokens={tokens}
           focus={focus}
           onFocus={onFocus}
+          explained={explained}
         />
       )}
     </div>
@@ -104,37 +114,70 @@ function CodeLines({
   tokens,
   focus,
   onFocus,
+  explained,
 }: {
   lines: string[];
   tokens: ThemedToken[][] | null;
   focus: LineRange | null;
   onFocus: (range: LineRange | null) => void;
+  explained: readonly LineRange[];
 }) {
   const container = useRef<HTMLDivElement>(null);
   const gutter = `calc(${String(lines.length).length}ch + 1.75rem)`;
+  const { setHoverLine } = useLinkSetters();
+  const peek = usePeek();
+  const covered = useMemo(() => {
+    const set = new Set<number>();
+    for (const r of explained)
+      for (let n = r.start; n <= r.end; n++) set.add(n);
+    return set;
+  }, [explained]);
 
+  // Bring a focused range into view, but leave the scroll alone when it is already visible
+  // (clicking a line in the code should not make the page jump).
   useEffect(() => {
-    if (!focus) return;
-    container.current
-      ?.querySelector(`[data-line="${focus.start}"]`)
-      ?.scrollIntoView({ block: "center", behavior: "smooth" });
+    if (!focus || !container.current) return;
+    const el = container.current.querySelector(`[data-line="${focus.start}"]`);
+    if (!el) return;
+    const box = container.current.getBoundingClientRect();
+    const line = el.getBoundingClientRect();
+    if (line.top < box.top || line.bottom > box.bottom)
+      el.scrollIntoView({ block: "center", behavior: "smooth" });
   }, [focus]);
+
+  const lineAt = (target: EventTarget) =>
+    Number(
+      (target as HTMLElement).closest<HTMLElement>("[data-line]")?.dataset
+        .line ?? 0,
+    ) || null;
 
   return (
     <div
       ref={container}
+      onMouseOver={(e) => setHoverLine(lineAt(e.target))}
+      onMouseLeave={() => setHoverLine(null)}
+      onClick={(e) => {
+        // A click on the code selects the line, unless the reader is selecting text to copy.
+        if (window.getSelection()?.toString()) return;
+        if ((e.target as HTMLElement).closest("button")) return;
+        const n = lineAt(e.target);
+        if (n) onFocus({ start: n, end: n });
+      }}
       className="min-h-0 flex-1 overflow-auto py-3 font-mono text-[12.5px] leading-[1.7] scrollbar-thin"
     >
       <div className="min-w-max">
         {lines.map((text, i) => {
           const n = i + 1;
           const active = focus && n >= focus.start && n <= focus.end;
+          const peeked = peek && n >= peek.start && n <= peek.end;
           return (
             <div
               key={i}
               data-line={n}
               className={cn(
                 "flex border-l-2 border-transparent pr-6",
+                covered.has(n) && "border-foreground/12",
+                peeked && "bg-accent",
                 active && "border-foreground/50 bg-warning/10",
               )}
             >

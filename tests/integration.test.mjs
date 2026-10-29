@@ -245,6 +245,7 @@ test("topics: plan, confirm, explain, overview, review, staleness, cancellation,
         status: "missing",
         brief: "",
         summary: "",
+        links: [],
       },
     ]);
     assert.equal(
@@ -485,6 +486,25 @@ test("unfinished jobs recover and SSE connections do not block shutdown", async 
     await server.app.close();
     await rm(home, { recursive: true, force: true });
   }
+});
+test("diagram links keep only well-formed nodes and real line ranges", () => {
+  assert.deepEqual(
+    validateExplanation(
+      {
+        ...explanation,
+        diagramLinks: [
+          { node: "A", start: 1, end: 2 },
+          { node: "A", start: 1, end: 1 },
+          { node: "B", start: 1, end: 9 },
+          { node: "x y", start: 1, end: 1 },
+          { node: "C", start: 2, end: 1 },
+        ],
+      },
+      2,
+    ).diagramLinks,
+    [{ node: "A", start: 1, end: 2 }],
+  );
+  assert.deepEqual(validateExplanation(explanation, 2).diagramLinks, []);
 });
 test("diagrams are cleaned and broken ones dropped without rejecting the answer", () => {
   assert.equal(

@@ -36,7 +36,8 @@ import {
 import { cn } from "@/lib/utils";
 import { ProjectActionsMenu } from "./project-actions";
 import { FileTree } from "./file-tree";
-import { CodeViewer, type LineRange } from "./code-viewer";
+import { CodeViewer } from "./code-viewer";
+import { ReaderLinkProvider, type LineRange } from "./reader-link";
 import { ExplanationPanel } from "./explanation-panel";
 import { ProjectOverview, topicStateLabel } from "./project-overview";
 import { TopicView } from "../topics/topic-view";
@@ -122,7 +123,6 @@ function Reader({ project }: { project: ProjectSummary }) {
     // Only react to the topic disappearing, not to every URL change.
   }, [missingTopic]);
 
-  // Left column: navigation on top, the topic map pinned at the bottom.
   const tree = (className?: string) => (
     <div className={cn("flex min-h-0 flex-col", className)}>
       <FileTree
@@ -132,18 +132,12 @@ function Reader({ project }: { project: ProjectSummary }) {
         onSelect={state.select}
         className="min-h-0 flex-1"
       />
-      {topic?.state === "confirmed" && (
-        <TopicMinimap
-          topic={topic}
-          current={state.file}
-          onSelect={state.select}
-        />
-      )}
     </div>
   );
   const code = (file: string) => (
     <CodeViewer
       projectId={project.id}
+      topicId={topic?.state === "confirmed" ? topic.id : null}
       path={file}
       focus={state.focus}
       onFocus={state.setFocus}
@@ -181,7 +175,7 @@ function Reader({ project }: { project: ProjectSummary }) {
     );
 
   return (
-    <>
+    <ReaderLinkProvider>
       <PageHeader>
         <ProjectActionsMenu project={project}>
           <button
@@ -225,7 +219,15 @@ function Reader({ project }: { project: ProjectSummary }) {
         </div>
       </PageHeader>
 
-      <div className="min-h-0 flex-1 border-t">
+      {/* The topic map floats over this area's bottom-left corner. */}
+      <div className="relative min-h-0 flex-1 border-t">
+        {topic?.state === "confirmed" && medium && (
+          <TopicMinimap
+            topic={topic}
+            current={state.file}
+            onSelect={state.select}
+          />
+        )}
         {wide ? (
           <ResizablePanelGroup orientation="horizontal">
             <ResizablePanel
@@ -279,7 +281,7 @@ function Reader({ project }: { project: ProjectSummary }) {
         onOpenChange={setCreating}
         onCreated={(id) => state.selectTopic(id, false)}
       />
-    </>
+    </ReaderLinkProvider>
   );
 }
 

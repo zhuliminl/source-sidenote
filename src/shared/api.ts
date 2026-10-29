@@ -45,6 +45,8 @@ export interface Explanation {
   evidence: { start: number; end: number; explanation: string }[];
   /** Mermaid source (flowchart or sequence diagram) of the file's role in the topic; may be empty. */
   diagram: string;
+  /** Flowchart node id → the lines it stands for; empty in older explanations. */
+  diagramLinks: { node: string; start: number; end: number }[];
 }
 
 export interface TopicStep {
@@ -60,6 +62,8 @@ export interface TopicOverview {
   caveats: string[];
   /** Mermaid source of the whole chain; may be empty. */
   diagram: string;
+  /** Flowchart node id → the topic file it stands for. */
+  diagramLinks: { node: string; path: string }[];
 }
 
 export interface Review {
@@ -77,6 +81,8 @@ export interface TopicFile {
   /** Hover blurbs from the file's explanation; empty until it is generated. */
   brief: string;
   summary: string;
+  /** Other topic files its explanation names as related, for the structure map. */
+  links: string[];
 }
 
 export interface TopicSummary {

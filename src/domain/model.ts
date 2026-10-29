@@ -166,7 +166,7 @@ export const configLimits = {
 } as const;
 
 /** Bump when prompts or the explanation schema change; older docs become stale. */
-export const PROMPT_VERSION = "topic-explanation-v2";
+export const PROMPT_VERSION = "topic-explanation-v3";
 
 export const MAX_SOURCE_BYTES = 128 * 1024;
 

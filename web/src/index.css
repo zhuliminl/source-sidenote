@@ -159,3 +159,15 @@
   max-width: none !important;
   max-height: 78vh;
 }
+/* Diagram nodes that point at code or files. */
+.diagram .diagram-link {
+  cursor: pointer;
+}
+.diagram .diagram-link:hover :is(rect, polygon, circle, path.basic) {
+  stroke: var(--foreground) !important;
+}
+.diagram .diagram-active :is(rect, polygon, circle, path.basic) {
+  stroke: var(--foreground) !important;
+  stroke-width: 2px !important;
+  fill: var(--accent) !important;
+}

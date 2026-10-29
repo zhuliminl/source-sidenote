@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
 import {
   Check,
   CircleAlert,
@@ -31,7 +31,12 @@ import {
 } from "@/lib/queries";
 import { timeAgo } from "@/lib/format";
 import { cn } from "@/lib/utils";
-import type { LineRange } from "./code-viewer";
+import {
+  narrowest,
+  useHoverLine,
+  useLinkSetters,
+  type LineRange,
+} from "./reader-link";
 
 type Doc = Exclude<DocumentView, { status: "missing" }>;
 
@@ -285,6 +290,37 @@ function Body({
   onNavigate: (path: string) => void;
 }) {
   const e = doc.explanation;
+  const hoverLine = useHoverLine();
+  const { setPeek } = useLinkSetters();
+  const links = e.diagramLinks ?? [];
+  // The line the reader points at in the code: hovered, else a single clicked line.
+  const line =
+    hoverLine ?? (focus && focus.start === focus.end ? focus.start : null);
+  const matched = narrowest(e.evidence, line);
+  const node = narrowest(links, line);
+  const list = useRef<HTMLUListElement>(null);
+  // Do not leave code highlighted after switching files mid-hover.
+  useEffect(() => () => setPeek(null), [setPeek]);
+
+  // Follow the code: scroll the matching evidence into view once the pointer settles.
+  useEffect(() => {
+    if (!matched) return;
+    const i = e.evidence.indexOf(matched);
+    const t = setTimeout(
+      () =>
+        list.current
+          ?.querySelector(`[data-evidence="${i}"]`)
+          ?.scrollIntoView({ block: "nearest", behavior: "smooth" }),
+      hoverLine === null ? 0 : 180,
+    );
+    return () => clearTimeout(t);
+  }, [matched, e.evidence, hoverLine]);
+
+  const rangeOf = (id: string | null) => {
+    const l = id ? links.find((x) => x.node === id) : undefined;
+    return l ? { start: l.start, end: l.end } : null;
+  };
+
   return (
     <div className="text-sm leading-7">
       {doc.status === "stale" && (
@@ -315,7 +351,16 @@ function Body({
         {doc.model} · {timeAgo(doc.generated)}
       </p>
       {e.diagram && (
-        <Diagram code={e.diagram} title={doc.path} className="mt-5" />
+        <Diagram
+          code={e.diagram}
+          title={doc.path}
+          className="mt-5"
+          linked={links.map((l) => l.node)}
+          active={node ? [node.node] : []}
+          onNodeClick={(id) => onFocus(rangeOf(id))}
+          onNodeHover={(id) => setPeek(rangeOf(id))}
+          linkHint="点击定位到代码"
+        />
       )}
 
       {e.flow.length > 0 && (
@@ -335,27 +380,34 @@ function Body({
         </Section>
       )}
       <List title="职责" items={e.responsibilities} />
-      <Section title="代码依据" hint="点击定位到代码">
-        <ul className="-mx-2 space-y-0.5">
+      <Section
+        title="代码依据"
+        hint="点击定位到代码，鼠标停在代码上会自动对应到这里"
+      >
+        <ul ref={list} className="-mx-2 space-y-0.5">
           {e.evidence.map((ev, i) => {
             const active = focus?.start === ev.start && focus.end === ev.end;
+            const linked = ev === matched;
             return (
-              <li key={i}>
+              <li key={i} data-evidence={i}>
                 <button
                   type="button"
                   onClick={() =>
                     onFocus(active ? null : { start: ev.start, end: ev.end })
                   }
+                  onMouseEnter={() => setPeek({ start: ev.start, end: ev.end })}
+                  onMouseLeave={() => setPeek(null)}
                   aria-pressed={active}
                   className={cn(
                     "flex w-full gap-2.5 rounded-lg px-2 py-1.5 text-left transition-colors hover:bg-muted",
-                    active && "bg-muted",
+                    (active || linked) && "bg-muted",
+                    linked && "ring-1 ring-foreground/15",
                   )}
                 >
                   <span
                     className={cn(
                       "mt-1 h-fit shrink-0 rounded-md bg-muted px-1.5 font-mono text-[11px] leading-5 text-muted-foreground tabular-nums",
-                      active && "bg-foreground text-background",
+                      (active || linked) && "bg-foreground text-background",
                     )}
                   >
                     L{ev.start}

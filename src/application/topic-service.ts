@@ -203,8 +203,10 @@ export class TopicService {
     const files = this.deps.files.list(t.project);
     const docs = this.deps.docs.listByTopic(t.id);
     const model = this.modelOf(t);
+    const topicFiles = this.deps.topics.files(t.id);
+    const inTopic = new Set(topicFiles.map((f) => f.path));
     return Promise.all(
-      this.deps.topics.files(t.id).map(async (f): Promise<TopicFile> => {
+      topicFiles.map(async (f): Promise<TopicFile> => {
         const d = docs.get(f.path);
         let status: FileStatus = "missing";
         if (d) {
@@ -222,6 +224,9 @@ export class TopicService {
           status,
           brief: e.brief ?? "",
           summary: e.summary ?? "",
+          links: (e.relations ?? [])
+            .map((r) => r.path)
+            .filter((p) => p !== f.path && inTopic.has(p)),
         };
       }),
     );

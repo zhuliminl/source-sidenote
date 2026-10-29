@@ -27,7 +27,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { InlineMarkdown } from "@/components/inline-markdown";
-import { Diagram } from "@/components/diagram";
+import { OverviewDiagram } from "./topic-minimap";
 import { PromptBlock } from "@/components/prompt-block";
 import { StatusDot, fileStatusLabel } from "@/components/status-dot";
 import {
@@ -444,13 +444,12 @@ function Walkthrough({
             <p className="text-[15px] leading-7 text-pretty">
               <InlineMarkdown>{topic.overview.summary}</InlineMarkdown>
             </p>
-            {topic.overview.diagram && (
-              <Diagram
-                code={topic.overview.diagram}
-                title={`${topic.title} · 链路全景`}
-                className="mt-5"
-              />
-            )}
+            <OverviewDiagram
+              topic={topic}
+              current={null}
+              onSelect={onOpenFile}
+              className="mt-5"
+            />
             <ol className="mt-5 space-y-1">
               {topic.overview.steps.map((s, i) => (
                 <li key={`${s.path}-${i}`}>

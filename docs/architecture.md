@@ -30,6 +30,10 @@ editors/neovim      仅负责编辑器显示与 CLI 调用
 
 config.json 保存供应商列表（名称、开关、API 格式、Base URL、密钥、模型及其开关）、默认模型 `{provider, model}` 和生成偏好。每个主题记录自己的模型（topics.provider/model）：新建时默认取默认模型，确认文件或重新规划时可以换；之后改默认模型不影响已有主题。v4 之前的主题 provider 为空，跟随默认模型。主题所选模型被关闭或删除时，它的任务失败并提示换模型；没有任何可用模型时队列暂停。旧版单模型配置在读取时升级为一个供应商。OpenAI 格式的 Base URL 含版本（`…/v1` + `/chat/completions`），Anthropic 格式不含（+ `/v1/messages`）。新鲜度比较主题所选模型的 ID。
 
+## 阅读器联动
+
+说明的 evidence 和 diagramLinks（flowchart 节点 → 行号）把说明和代码连起来：代码行悬停或点击会高亮并滚动到覆盖它的最窄那条依据和对应的图节点；悬停依据或图节点会在代码里浅色标出范围，点击则定位。导读的 diagramLinks（节点 → 主题文件）让全景图节点可以打开文件。TopicFile.links 来自说明里指向同一主题文件的 relations，用于结构图。
+
 ## 生命周期
 
 `add → realpath → 扫描 → 更新清单`（不调用模型）

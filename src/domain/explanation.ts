@@ -10,6 +10,25 @@ const DIAGRAM_TYPES =
  * Diagrams are a bonus: a missing or obviously broken one is dropped instead of
  * rejecting an otherwise valid answer. Syntax errors are caught when rendering.
  */
+const NODE_ID = /^[A-Za-z][A-Za-z0-9_]{0,30}$/;
+
+/** Keeps links whose node id is well-formed; `keep` decides what else must hold. */
+function cleanLinks<T extends { node: string }>(
+  value: unknown,
+  keep: (link: T) => boolean,
+): T[] {
+  if (!Array.isArray(value)) return [];
+  const seen = new Set<string>();
+  return (value as T[]).filter(
+    (l) =>
+      typeof l?.node === "string" &&
+      NODE_ID.test(l.node) &&
+      !seen.has(l.node) &&
+      keep(l) &&
+      seen.add(l.node),
+  );
+}
+
 export function cleanDiagram(value: unknown): string {
   if (typeof value !== "string") return "";
   const text = value
@@ -67,6 +86,15 @@ export function validateExplanation(
       explanation,
     })),
     diagram: cleanDiagram(v.diagram),
+    diagramLinks: cleanLinks<Explanation["diagramLinks"][number]>(
+      v.diagramLinks,
+      (l) =>
+        Number.isInteger(l.start) &&
+        Number.isInteger(l.end) &&
+        l.start >= 1 &&
+        l.start <= l.end &&
+        l.end <= lineCount,
+    ).map(({ node, start, end }) => ({ node, start, end })),
   };
 }
 
@@ -177,5 +205,9 @@ export function validateOverview(
       })),
     caveats: v.caveats,
     diagram: cleanDiagram(v.diagram),
+    diagramLinks: cleanLinks<TopicOverview["diagramLinks"][number]>(
+      v.diagramLinks,
+      (l) => typeof l.path === "string" && paths.has(l.path),
+    ).map(({ node, path }) => ({ node, path })),
   };
 }
