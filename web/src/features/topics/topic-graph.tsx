@@ -11,10 +11,15 @@ interface Edge {
 }
 
 const NODE_H = 26;
-const width = (label: string) =>
-  Math.min(132, 18 + [...short(label)].length * 11.5);
+const MAX_CHARS = 14;
+// CJK characters take about twice the width of Latin ones at this size.
+const textWidth = (s: string) =>
+  [...s].reduce((w, c) => w + (c.charCodeAt(0) > 0x2e80 ? 11.5 : 6.6), 0);
 const short = (label: string) =>
-  [...label].length > 9 ? [...label].slice(0, 8).join("") + "…" : label;
+  [...label].length > MAX_CHARS
+    ? [...label].slice(0, MAX_CHARS - 1).join("") + "…"
+    : label;
+const width = (label: string) => Math.min(170, 20 + textWidth(short(label)));
 
 /**
  * Deterministic force layout (Fruchterman–Reingold, then a pass that pushes overlapping
@@ -22,7 +27,7 @@ const short = (label: string) =>
  */
 function layout(labels: string[], edges: Edge[]) {
   const n = labels.length;
-  const K = 120;
+  const K = 96;
   const pos = labels.map((_, i) => {
     const a = (i / Math.max(n, 1)) * Math.PI * 2 - Math.PI / 2;
     return { x: Math.cos(a) * K * 1.4, y: Math.sin(a) * K * 1.4 };

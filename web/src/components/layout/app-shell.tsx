@@ -45,10 +45,11 @@ export function AppShell() {
         )}
         <aside
           className={cn(
-            "z-50 h-full shrink-0 overflow-hidden bg-sidebar transition-[width,transform] duration-200 ease-out",
+            "h-full shrink-0 overflow-hidden bg-sidebar transition-[width,transform] duration-200 ease-out",
+            // Only the phone overlay needs to sit above the page (and the floating topic map).
             isMobile
               ? cn(
-                  "fixed inset-y-0 left-0 w-[280px] shadow-xl",
+                  "fixed inset-y-0 left-0 z-50 w-[280px] shadow-xl",
                   mobileOpen ? "translate-x-0" : "-translate-x-full",
                 )
               : desktopOpen

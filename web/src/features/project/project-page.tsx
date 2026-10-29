@@ -219,7 +219,7 @@ function Reader({ project }: { project: ProjectSummary }) {
         </div>
       </PageHeader>
 
-      {/* The topic map floats over this area's bottom-left corner. */}
+      {/* The topic map floats above everything (fixed, draggable); it is mounted here for its data. */}
       <div className="relative min-h-0 flex-1 border-t">
         {topic?.state === "confirmed" && medium && (
           <TopicMinimap

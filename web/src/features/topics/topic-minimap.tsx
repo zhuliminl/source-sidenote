@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ChevronDown,
   ChevronLeft,
@@ -39,21 +39,100 @@ const storage = {
   },
 };
 
-/** Stations come from the walkthrough once it exists, otherwise from the confirmed reading order. */
+const bareName = (path: string) => splitPath(path).name.replace(/\.[^.]+$/, "");
+
+/**
+ * Stations come from the walkthrough once it exists, otherwise from the confirmed reading
+ * order, named by each explanation's short name or else the file name without extension.
+ */
 function stationsOf(topic: TopicView): TopicStep[] {
+  const entries = new Map(topic.entries.map((e) => [e.path, e]));
   if (topic.overview?.steps.length)
     return topic.overview.steps.map((s) => ({
       ...s,
-      label: s.label || splitPath(s.path).name,
+      label: s.label || entries.get(s.path)?.brief || bareName(s.path),
     }));
   return topic.entries.map((e) => ({
     path: e.path,
-    label: splitPath(e.path).name,
-    description: e.reason,
+    label: e.brief || bareName(e.path),
+    description: e.summary || e.reason,
   }));
 }
 
 type Mode = "line" | "graph";
+
+interface Spot {
+  left: number;
+  bottom: number;
+}
+
+/**
+ * Keeps a floating element where the reader dragged it, anchored by its bottom-left corner
+ * (so the card grows up and right from the pill), clamped to the window and remembered.
+ */
+function useDraggable(key: string, fallback: Spot) {
+  const [spot, setSpot] = useState<Spot>(() => storage.get(key, fallback));
+  const el = useRef<HTMLElement | null>(null);
+  const drag = useRef<{
+    x: number;
+    y: number;
+    from: Spot;
+    moved: boolean;
+  } | null>(null);
+  const moved = useRef(false);
+
+  const clamp = useCallback((s: Spot): Spot => {
+    const r = el.current?.getBoundingClientRect();
+    const w = r?.width ?? 160;
+    const h = r?.height ?? 36;
+    return {
+      left: Math.round(Math.min(Math.max(8, s.left), innerWidth - w - 8)),
+      bottom: Math.round(Math.min(Math.max(8, s.bottom), innerHeight - h - 8)),
+    };
+  }, []);
+  // Stay on screen when the window shrinks or the card changes size.
+  const refit = useCallback(() => setSpot((s) => clamp(s)), [clamp]);
+  useEffect(() => {
+    addEventListener("resize", refit);
+    return () => removeEventListener("resize", refit);
+  }, [refit]);
+
+  const handle = {
+    onPointerDown(e: React.PointerEvent<HTMLElement>) {
+      if (e.button !== 0) return;
+      // Buttons inside the handle keep working; the handle itself is marked data-drag.
+      const target = e.target as HTMLElement;
+      if (
+        target.closest("button, [role=tab]") &&
+        !target.closest("[data-drag]")
+      )
+        return;
+      drag.current = { x: e.clientX, y: e.clientY, from: spot, moved: false };
+      moved.current = false;
+      e.currentTarget.setPointerCapture(e.pointerId);
+    },
+    onPointerMove(e: React.PointerEvent<HTMLElement>) {
+      const d = drag.current;
+      if (!d) return;
+      const dx = e.clientX - d.x;
+      const dy = e.clientY - d.y;
+      if (!d.moved && Math.hypot(dx, dy) < 4) return;
+      d.moved = moved.current = true;
+      setSpot(clamp({ left: d.from.left + dx, bottom: d.from.bottom - dy }));
+    },
+    onPointerUp() {
+      if (drag.current?.moved) setSpot((s) => (storage.set(key, s), s));
+      drag.current = null;
+    },
+  };
+  /** True right after a drag, so the click that ends it does not also toggle. */
+  const wasDragged = () => {
+    const m = moved.current;
+    moved.current = false;
+    return m;
+  };
+  return { spot, el, handle, refit, wasDragged };
+}
 
 /**
  * The topic map floats over the reader's bottom-left corner so it never takes layout space:
@@ -86,6 +165,13 @@ export function TopicMinimap({
   );
   const [expanded, setExpanded] = useState(false);
   const list = useRef<HTMLOListElement>(null);
+  // Default: the window's bottom-left corner, just above the sidebar's settings row.
+  const float = useDraggable("sidenote-map-spot", { left: 12, bottom: 60 });
+  const { refit } = float;
+  useEffect(() => {
+    const id = requestAnimationFrame(refit);
+    return () => cancelAnimationFrame(id);
+  }, [open, mode, refit]);
   const index = stations.findIndex((s) => s.path === current);
 
   useEffect(() => {
@@ -122,15 +208,21 @@ export function TopicMinimap({
     <>
       {open ? (
         <section
+          ref={float.el}
           aria-label="主题地图"
+          style={float.spot}
           className={cn(
-            "absolute bottom-3 left-3 z-30 flex flex-col overflow-hidden rounded-2xl border bg-popover shadow-xl animate-in fade-in-0 zoom-in-95",
+            "fixed z-40 flex flex-col overflow-hidden rounded-2xl border bg-popover shadow-xl animate-in fade-in-0 zoom-in-95",
             mode === "graph"
-              ? "h-[min(440px,70vh)] w-[min(420px,calc(100%-1.5rem))]"
-              : "max-h-[min(460px,70vh)] w-[min(360px,calc(100%-1.5rem))]",
+              ? "h-[min(480px,75vh)] w-[min(480px,calc(100vw-1.5rem))]"
+              : "max-h-[min(460px,70vh)] w-[min(360px,calc(100vw-1.5rem))]",
           )}
         >
-          <header className="flex h-11 shrink-0 items-center gap-1 border-b pr-1.5 pl-3 whitespace-nowrap">
+          <header
+            {...float.handle}
+            title="拖动可移动位置"
+            className="flex h-11 shrink-0 cursor-grab touch-none items-center gap-1 border-b pr-1.5 pl-3 whitespace-nowrap select-none active:cursor-grabbing"
+          >
             <MapIcon className="size-3.5 shrink-0 text-muted-foreground" />
             <span className="text-xs font-medium">主题地图</span>
             <span className="text-xs text-subtle-foreground tabular-nums">
@@ -256,10 +348,17 @@ export function TopicMinimap({
         </section>
       ) : (
         <button
+          ref={(node) => {
+            float.el.current = node;
+          }}
           type="button"
-          onClick={() => toggle(true)}
+          data-drag
+          {...float.handle}
+          onClick={() => !float.wasDragged() && toggle(true)}
           aria-label="打开主题地图"
-          className="absolute bottom-3 left-3 z-30 flex items-center gap-2 rounded-full border bg-popover py-1.5 pr-3.5 pl-3 text-xs shadow-lg transition-colors hover:bg-accent"
+          title="点击打开，拖动可移动位置"
+          style={float.spot}
+          className="fixed z-40 flex touch-none items-center gap-2 rounded-full border bg-popover py-1.5 pr-3.5 pl-3 text-xs shadow-lg transition-colors select-none hover:bg-accent"
         >
           <MapIcon className="size-3.5 text-muted-foreground" />
           主题地图
