@@ -20,6 +20,7 @@ export function FileHint({
   children,
   side = "right",
   disabled = false,
+  meta,
 }: {
   hint: Hint | undefined;
   path: string;
@@ -28,6 +29,8 @@ export function FileHint({
   side?: "right" | "top" | "left" | "bottom";
   /** Keeps the card closed (e.g. while the row is being dragged) without remounting it. */
   disabled?: boolean;
+  /** Replaces the default "file name · status" footer. */
+  meta?: string;
 }) {
   if (!hint || (!hint.brief && !hint.detail)) return children;
   return (
@@ -50,7 +53,7 @@ export function FileHint({
           </p>
         )}
         <p className="truncate pt-0.5 font-mono text-[11px] text-subtle-foreground">
-          {splitPath(path).name} · {status}
+          {meta ?? `${splitPath(path).name} · ${status}`}
         </p>
       </TooltipContent>
     </Tooltip>

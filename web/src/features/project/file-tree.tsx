@@ -1,4 +1,5 @@
-import { useDeferredValue, useEffect, useMemo, useState } from "react";
+import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
+import { revealCentered } from "@/hooks/use-pulse";
 import { ChevronRight, Search } from "lucide-react";
 import type { FileEntry, FileStatus, TopicView } from "@shared/api";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -201,6 +202,28 @@ export function FileTree({
     });
   }, [topicStatus]);
 
+  // Point at the newly active file: scroll it to the middle if it is out of view, then pulse it.
+  const rows = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!selected) return;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const frame = requestAnimationFrame(() => {
+      const el = rows.current?.querySelector<HTMLElement>(
+        `[data-path="${CSS.escape(selected)}"]`,
+      );
+      if (!el) return;
+      revealCentered(el);
+      el.classList.remove("pulse");
+      void el.offsetWidth; // restart the animation
+      el.classList.add("pulse");
+      timer = setTimeout(() => el.classList.remove("pulse"), 800);
+    });
+    return () => {
+      cancelAnimationFrame(frame);
+      clearTimeout(timer);
+    };
+  }, [selected, view, onlyMarked, Boolean(deferred)]);
+
   const toggle = (path: string) =>
     setExpanded((prev) => {
       const next = new Set(prev);
@@ -279,6 +302,7 @@ export function FileTree({
       </div>
 
       <div
+        ref={rows}
         role="tree"
         aria-label="项目文件"
         className="min-h-0 flex-1 overflow-y-auto px-1.5 pb-4 text-[13px] scrollbar-thin"
@@ -377,11 +401,13 @@ function OrderItem({
     <FileHint hint={hint} path={path} status={fileStatusLabel[status]}>
       <button
         type="button"
+        data-path={path}
         onClick={() => onSelect(path)}
         title={hint ? undefined : `${path} · ${fileStatusLabel[status]}`}
         className={cn(
           "flex w-full items-start gap-2 rounded-md px-2 py-1.5 text-left transition-colors hover:bg-accent/70",
-          selected && "bg-accent hover:bg-accent",
+          selected &&
+            "bg-emerald-500/10 text-emerald-700 hover:bg-emerald-500/10 dark:text-emerald-400",
         )}
       >
         <span className="mt-px w-4 shrink-0 text-right text-[11px] text-subtle-foreground tabular-nums">
@@ -438,6 +464,7 @@ function Nodes({
                 type="button"
                 role="treeitem"
                 aria-selected={props.selected === node.path}
+                data-path={node.path}
                 onClick={() => props.onSelect(node.path)}
                 title={hint ? undefined : `${node.path} · ${m.label}`}
                 style={indent}
@@ -447,7 +474,7 @@ function Nodes({
                     !highlighted(m) &&
                     "text-subtle-foreground",
                   props.selected === node.path &&
-                    "bg-accent font-medium text-foreground hover:bg-accent",
+                    "bg-emerald-500/10 font-medium text-emerald-700 hover:bg-emerald-500/10 dark:text-emerald-400",
                 )}
               >
                 <span className="flex w-3.5 shrink-0 justify-center">
@@ -510,10 +537,12 @@ function SearchResult({
     <FileHint hint={hint} path={file.path} status={mark.label}>
       <button
         type="button"
+        data-path={file.path}
         onClick={() => onSelect(file.path)}
         className={cn(
           "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left transition-colors hover:bg-accent/70",
-          selected && "bg-accent hover:bg-accent",
+          selected &&
+            "bg-emerald-500/10 text-emerald-700 hover:bg-emerald-500/10 dark:text-emerald-400",
         )}
       >
         <MarkDot mark={mark} />

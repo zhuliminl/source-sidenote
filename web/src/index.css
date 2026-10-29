@@ -171,3 +171,56 @@
   stroke-width: 2px !important;
   fill: var(--accent) !important;
 }
+
+/* "You are here" cue when a file becomes active: a quick pop plus a green ripple. */
+@keyframes sidenote-pop {
+  0% {
+    transform: scale(1);
+  }
+  35% {
+    transform: scale(1.035);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+@keyframes sidenote-ripple {
+  0% {
+    box-shadow: 0 0 0 0 rgb(16 185 129 / 0.45);
+  }
+  100% {
+    box-shadow: 0 0 0 7px rgb(16 185 129 / 0);
+  }
+}
+@keyframes sidenote-svg-ripple {
+  0% {
+    transform: scale(1);
+    opacity: 0.55;
+  }
+  100% {
+    transform: scale(1.35);
+    opacity: 0;
+  }
+}
+.pulse {
+  animation:
+    sidenote-pop 0.45s ease-out,
+    sidenote-ripple 0.75s ease-out;
+}
+.svg-pulse {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: sidenote-pop 0.45s ease-out;
+}
+.svg-ripple {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: sidenote-svg-ripple 0.8s ease-out forwards;
+}
+@media (prefers-reduced-motion: reduce) {
+  .pulse,
+  .svg-pulse,
+  .svg-ripple {
+    animation: none;
+  }
+}

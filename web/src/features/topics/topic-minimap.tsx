@@ -28,6 +28,7 @@ import { InlineMarkdown } from "@/components/inline-markdown";
 import { FileHint } from "@/components/file-hint";
 import { TopicGraph } from "./topic-graph";
 import { publishMapRect } from "./map-rect";
+import { revealCentered, usePulse } from "@/hooks/use-pulse";
 import { splitPath } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
@@ -262,9 +263,7 @@ export function TopicMinimap({
 
   // Keep "you are here" in view as the reader moves along the chain.
   useEffect(() => {
-    list.current
-      ?.querySelector('[aria-current="step"]')
-      ?.scrollIntoView({ block: "nearest" });
+    revealCentered(list.current?.querySelector('[aria-current="step"]'));
   }, [index, open, mode]);
 
   const toggle = (next: boolean) => {
@@ -593,19 +592,23 @@ function Station({
   onSelect: (path: string) => void;
 }) {
   const { name } = splitPath(station.path);
+  const pulse = usePulse(here, station.path);
   return (
     <li aria-current={here ? "step" : undefined}>
       <FileHint
-        hint={{ brief: station.label, detail: station.description }}
+        hint={{ brief: name, detail: station.description }}
         path={station.path}
-        status={`第 ${index + 1} 站${here ? " · 当前" : visited ? " · 已看过" : ""}`}
+        status=""
+        meta={`${station.label} · 第 ${index + 1} 站${here ? " · 当前" : visited ? " · 已看过" : ""}`}
       >
         <button
           type="button"
           onClick={() => onSelect(station.path)}
           className={cn(
             "group flex w-full items-stretch gap-2.5 rounded-lg px-1.5 text-left transition-colors hover:bg-accent/70",
-            here && "bg-accent hover:bg-accent",
+            here &&
+              "bg-emerald-500/10 text-emerald-700 hover:bg-emerald-500/10 dark:text-emerald-400",
+            pulse && "pulse",
           )}
         >
           {/* The rail: a continuous line through every station's dot. */}
@@ -621,7 +624,7 @@ function Station({
               className={cn(
                 "relative z-10 my-auto rounded-full",
                 here
-                  ? "size-2.5 bg-foreground ring-4 ring-foreground/15"
+                  ? "size-2.5 bg-emerald-500 ring-4 ring-emerald-500/20"
                   : visited
                     ? "size-2 bg-foreground/55"
                     : "size-2 border border-subtle-foreground/70 bg-sidebar",
@@ -642,7 +645,7 @@ function Station({
             </span>
           </span>
           {here && (
-            <span className="my-auto shrink-0 rounded-full bg-foreground px-1.5 py-px text-[10px] text-background">
+            <span className="my-auto shrink-0 rounded-full bg-emerald-600 px-1.5 py-px text-[10px] text-white">
               当前
             </span>
           )}

@@ -3,6 +3,8 @@ import { LayoutGrid } from "lucide-react";
 import type { TopicStep } from "@shared/api";
 import { FileHint } from "@/components/file-hint";
 import { cn } from "@/lib/utils";
+import { splitPath } from "@/lib/format";
+import { usePulse } from "@/hooks/use-pulse";
 
 interface Edge {
   a: number;
@@ -257,6 +259,7 @@ export function TopicGraph({
   });
 
   const here = stations.findIndex((s) => s.path === current);
+  const pulse = usePulse(here >= 0, current);
   const focus = hover ?? (here >= 0 ? here : null);
   const near = new Set<number>();
   if (focus !== null)
@@ -346,31 +349,42 @@ export function TopicGraph({
                 dim && "opacity-35",
               )}
             >
-              <rect
-                width={p.w}
-                height={NODE_H}
-                rx={8}
-                className={cn(
-                  isHere
-                    ? "fill-foreground stroke-foreground"
-                    : seen
-                      ? "fill-accent stroke-muted-foreground/50"
-                      : "fill-popover stroke-border",
-                  hover === i && !isHere && "stroke-foreground",
-                )}
-              />
-              <text
-                x={p.w / 2}
-                y={NODE_H / 2}
-                dominantBaseline="central"
-                textAnchor="middle"
-                className={cn(
-                  "text-[11.5px]",
-                  isHere ? "fill-background font-medium" : "fill-foreground",
-                )}
-              >
-                {short(s.label)}
-              </text>
+              {isHere && pulse && (
+                <rect
+                  width={p.w}
+                  height={NODE_H}
+                  rx={8}
+                  className="svg-ripple fill-none stroke-emerald-500"
+                  strokeWidth={2}
+                />
+              )}
+              <g className={cn(isHere && pulse && "svg-pulse")}>
+                <rect
+                  width={p.w}
+                  height={NODE_H}
+                  rx={8}
+                  className={cn(
+                    isHere
+                      ? "fill-emerald-600 stroke-emerald-600"
+                      : seen
+                        ? "fill-accent stroke-muted-foreground/50"
+                        : "fill-popover stroke-border",
+                    hover === i && !isHere && "stroke-foreground",
+                  )}
+                />
+                <text
+                  x={p.w / 2}
+                  y={NODE_H / 2}
+                  dominantBaseline="central"
+                  textAnchor="middle"
+                  className={cn(
+                    "text-[11.5px]",
+                    isHere ? "fill-white font-medium" : "fill-foreground",
+                  )}
+                >
+                  {short(s.label)}
+                </text>
+              </g>
             </g>
           );
           // No hover card while dragging: it would trail behind the station.
@@ -378,9 +392,10 @@ export function TopicGraph({
             <FileHint
               key={`${s.path}-${i}`}
               disabled={Boolean(dragging)}
-              hint={{ brief: s.label, detail: s.description }}
+              hint={{ brief: splitPath(s.path).name, detail: s.description }}
               path={s.path}
-              status={`第 ${i + 1} 站${isHere ? " · 当前" : seen ? " · 已看过" : ""} · 可拖动`}
+              status=""
+              meta={`${s.label} · 第 ${i + 1} 站${isHere ? " · 当前" : seen ? " · 已看过" : ""} · 可拖动`}
             >
               {node}
             </FileHint>
